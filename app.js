@@ -958,8 +958,6 @@
     });
     document.getElementById('rankPeriod').onchange=e=>{S.rankPeriod=e.target.value; renderRank();};
     document.getElementById('rankSearch').oninput=()=>renderRank();
-    // 导出基础数据（按板块+期次）
-    const ep=document.getElementById('cmpExportData'); if(ep) ep.onclick=exportCmpBaseData;
     // 下载汇总CSV（所有期次×全部主体，汇报用）
     const cd=document.getElementById('cmpDownload'); if(cd) cd.onclick=exportCmpCsv;
     const ct=document.getElementById('cmpToggleCap'); if(ct) ct.onclick=()=>{
@@ -1197,13 +1195,6 @@
       + ' 集团加权平均(计算口径)=所有集团公司加权<b>含阳光集团</b>（按半年报披露，仅Q2/Q4有数据，展示时隐藏Q1/Q3）。'
       + ' 监管披露口径为监管直接披露的行业平均（仅充足率，无资本明细）。银保系=9家银行系寿险公司加权。'
       + ' 金额单位：亿元（保留2位小数）。阳光系数值取自对应板块偿付能力表。';
-    // 填充导出基础数据的期次下拉（取全部期次，默认最新）
-    const allPeriods = cmpPeriods();
-    const expSel = document.getElementById('cmpExportPeriod');
-    if(expSel){
-      expSel.innerHTML = allPeriods.map(p=>'<option value="'+p+'">'+p+'</option>').join('');
-      expSel.value = allPeriods[allPeriods.length-1] || '';
-    }
     CMP_SECS.forEach(sec=>{
       // 初始化两期对比的默认期并填充下拉
       if(!cmpCmpPeriods[sec]) cmpCmpPeriods[sec] = cmpDefaultPeriods(sec);
@@ -1277,20 +1268,25 @@
         dataA.push(va==null?null:(ent.src==='reg'?va:pctVal(va)));
         dataB.push(vb==null?null:(ent.src==='reg'?vb:pctVal(vb)));
       });
-      // 标签格式器：值(2位小数) + 变动(bp)
-      function makeLabel(dataOther){
+      // 标签格式器：新期(系列A)显示值+差异bp，旧期(系列B)只显示值
+      function makeLabelNew(dataOld){
         return {
-          show:true, position:'top', fontSize:9, lineHeight:13,
+          show:true, position:'top', fontSize:9, lineHeight:14,
           rich:{ v:{fontSize:10,fontWeight:600,color:'#333'}, d:{fontSize:8,color:'#666',padding:[0,0,1,0]} },
           formatter:function(p){
             if(p.value==null) return '';
             const val = p.value.toFixed(2);
-            const ov = dataOther[p.dataIndex];
+            const ov = dataOld[p.dataIndex];
             if(ov==null) return '{v|'+val+'}';
             const bp = ((p.value - ov) * 100).toFixed(1);
             const sign = bp >= 0 ? '+' : '';
             return '{v|'+val+'}\n{d|'+sign+bp+'bp}';
           }
+        };
+      }
+      function makeLabelOld(){
+        return { show:true, position:'top', fontSize:10,
+          formatter:function(p){ return p.value!=null ? p.value.toFixed(2) : ''; }
         };
       }
       const option = {
@@ -1300,8 +1296,8 @@
         xAxis:{ type:'category', data:names, axisLabel:{ fontSize:10, interval:0, rotate: names.length>4?20:0 } },
         yAxis:{ type:'value', name:'充足率(%)', min:0, axisLabel:{ formatter:v=> (Math.round(v*10)/10) } },
         series:[
-          { name:pA, type:'bar', data:dataA, itemStyle:{ color:'#2f6fdb', borderRadius:[3,3,0,0] },          label:makeLabel(dataB) },
-          { name:pB, type:'bar', data:dataB, itemStyle:{ color:'#e67e22', borderRadius:[3,3,0,0] }, label:makeLabel(dataA) }
+          { name:pA, type:'bar', data:dataA, itemStyle:{ color:'#2f6fdb', borderRadius:[3,3,0,0] },          label:makeLabelNew(dataB) },
+          { name:pB, type:'bar', data:dataB, itemStyle:{ color:'#e67e22', borderRadius:[3,3,0,0] }, label:makeLabelOld() }
         ]
       };
       const chartId = 'cmpCmp2_'+sec+'_'+(mi===0?'C':'D');
@@ -1459,74 +1455,6 @@
     const blob = new Blob([s], {type:'text/csv;charset=utf-8'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = '上市公司对比_汇总.csv'; a.click();
-  }
-
-  // 导出基础数据：当前板块 + 指定期次的所有主体 I/J/K/L/M/N/C/D 原始值
-  function exportCmpBaseData(){
-    const BL = window.CMP_CONFIG.blocks;
-    // 当前选中的子板块
-    const activeBtn = document.querySelector('#cmpSecTabs button.on');
-    const sec = activeBtn ? activeBtn.dataset.csec : 'group';
-    const S = BL[sec];
-    // 选中的期次
-    const sel = document.getElementById('cmpExportPeriod');
-    const period = sel ? sel.value : null;
-    if(!period){ alert('请先选择要导出的报告期'); return; }
-    // 实际用 dataBlock
-    const dk = S.dataBlock;
-
-    const CAP_FIELDS = [
-      {f:'I',n:'实际资本I(万元)'},{f:'J',n:'核心一级J(万元)'},{f:'K',n:'核心二级K(万元)'},
-      {f:'L',n:'附属一级L(万元)'},{f:'M',n:'附属二级M(万元)'},{f:'N',n:'最低资本N(万元)'}
-    ];
-    let s = '\ufeff' + S.title + ' · 基础数据 · ' + period + '\n';
-    s += '主体,综合充足率C,核心充足率D,' + CAP_FIELDS.map(c=>c.n).join(',') + '\n';
-
-    // 实体行（加权/监管/阳光）
-    S.entities.forEach(ent=>{
-      let row = ent.name + ',';
-      if(ent.src==='reg'){
-        const o = (typeof REG_INDUSTRY!=='undefined' && REG_INDUSTRY.data[ent.seg]) ? REG_INDUSTRY.data[ent.seg] : {};
-        const dk2 = (period.endsWith('Q4')?'20'+period.slice(0,2):'20'+period);
-        const r = o[dk2];
-        row += (r && r.C!=null)?r.C:''; row += ',';
-        row += (r && r.D!=null)?r.D:''; row += ',';
-        CAP_FIELDS.forEach(()=>{ row += ','; }); // 监管披露无资本明细
-      } else {
-        const r = cmpDataRec(dk, ent.company || '_', period);
-        row += (r && r.C!=null)?r.C:''; row += ',';
-        row += (r && r.D!=null)?r.D:''; row += ',';
-        CAP_FIELDS.forEach(cf => { row += (r && r[cf.f]!=null)?r[cf.f]:''; row += ','; });
-      }
-      s += row.slice(0,-1) + '\n'; // 去掉末尾多余逗号
-      // 资本子行
-      if(ent.src!=='reg'){
-        CAP_FIELDS.forEach(cf=>{
-          s += '└ '+cf.n+',,,,,,,,,' + '\n'; // 占位，实际值已在主行
-        });
-      }
-    });
-
-    // 公司明细行
-    const entityCompanyNames = new Set(S.entities.filter(e=>e.company).map(e=>e.company));
-    const filteredCompanies = S.companies.filter(c => !entityCompanyNames.has(c));
-    if(sec==='life') filteredCompanies.push(...CMP_CONFIG.blocks.life.lists.banks);
-
-    filteredCompanies.forEach(item => {
-      const c = item.name || item;
-      const isBank = item.isBank || false;
-      const bKey = isBank ? 'life' : dk;
-      const r = cmpDataRec(bKey, c, period);
-      let row = c + ',';
-      row += (r && r.C!=null)?r.C:''; row += ',';
-      row += (r && r.D!=null)?r.D:''; row += ',';
-      CAP_FIELDS.forEach(cf => { row += (r && r[cf.f]!=null)?r[cf.f]:''; row += ','; });
-      s += row.slice(0,-1) + '\n';
-    });
-
-    const blob = new Blob([s], {type:'text/csv;charset=utf-8'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = S.title.replace(/[、（）]/g,'_') + '_' + period + '_基础数据.csv'; a.click();
   }
   // ---------- 分离表头列宽同步 ----------
   function syncSplitHdr(){
