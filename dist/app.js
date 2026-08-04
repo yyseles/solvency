@@ -261,7 +261,7 @@
     box.innerHTML =
       '<div class="hint" style="margin-bottom:14px">以下为各细分板块最新报告期的行业偿付能力概览。计算加权口径为本平台基于个体披露自算（综合=Σ实际资本/Σ最低资本，核心=Σ核心资本/Σ最低资本）；监管披露口径为金融监管总局直接披露（集团暂无监管披露口径，以「—」表示）。</div>'+
       '<div class="card"><h3>各板块最新偿付能力概览</h3>'+
-        '<table class="split-table" style="border-radius:10px;overflow:hidden">'+
+        '<div style="overflow-x:auto;border:1px solid var(--line);border-radius:10px"><table style="width:100%;min-width:680px;table-layout:auto;font-size:13px;border-collapse:separate;border-spacing:0">'+
           '<thead><tr><th>板块</th><th>最新期</th><th>综合(加权)</th><th>综合(监管)</th><th>核心(加权)</th><th>核心(监管)</th><th>样本数</th><th>达标率</th></tr></thead>'+
           '<tbody>'+rows.map(r=>`<tr>`+
             `<td style="text-align:left;font-weight:600">${r.name}</td>`+
