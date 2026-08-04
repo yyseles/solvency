@@ -934,6 +934,7 @@
       if(b.dataset.seg==='compare'){
         document.getElementById('tabs').style.display='none';
         const ctl=document.querySelector('.controls'); if(ctl) ctl.style.display='none';
+        const se=document.getElementById('segExport'); if(se) se.style.display='none';
         document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
         document.getElementById('p-compare').classList.add('on');
         renderCompare();
@@ -941,6 +942,10 @@
         return;
       }
       loadSeg(b.dataset.seg); applySegMode(); refreshTimeBased();
+    });
+    // 四个板块行业明细导出
+    document.querySelectorAll('#segExport button[data-export-seg]').forEach(b=>{
+      b.onclick=()=> exportSegDetail(b.dataset.exportSeg);
     });
     // 数据管理（已移除"数据"按钮及浮层）
     document.getElementById('rangeStart').onchange=e=>{S.range[0]=+e.target.value; if(S.range[0]>S.range[1])S.range[1]=S.range[0]; refreshTimeBased();};
@@ -1268,27 +1273,16 @@
         dataA.push(va==null?null:(ent.src==='reg'?va:pctVal(va)));
         dataB.push(vb==null?null:(ent.src==='reg'?vb:pctVal(vb)));
       });
-      // 标签格式器：新期(系列A)显示值+差异bp，旧期(系列B)只显示值
-      function makeLabelNew(dataOld){
-        return {
-          show:true, position:'top', fontSize:9, lineHeight:14,
-          rich:{ v:{fontSize:10,fontWeight:600,color:'#333'}, d:{fontSize:8,color:'#666',padding:[0,0,1,0]} },
-          formatter:function(p){
-            if(p.value==null) return '';
-            const val = p.value.toFixed(2);
-            const ov = dataOld[p.dataIndex];
-            if(ov==null) return '{v|'+val+'}';
-            const bp = ((p.value - ov) * 100).toFixed(1);
-            const sign = bp >= 0 ? '+' : '';
-            return '{v|'+val+'}\n{d|'+sign+bp+'bp}';
-          }
-        };
-      }
-      function makeLabelOld(){
-        return { show:true, position:'top', fontSize:10,
-          formatter:function(p){ return p.value!=null ? p.value.toFixed(2) : ''; }
-        };
-      }
+      // 差异标记点：置于两根柱子中间偏上高度，显示差异(百分数, 即百分点)
+      const diffData = dataA.map((v,i)=>{
+        if(v==null || dataB[i]==null) return null;
+        const mid = (v + dataB[i]) / 2;
+        const d = v - dataB[i];
+        const sign = d >= 0 ? '+' : '';
+        return { coord:[names[i], mid], diff: sign + d.toFixed(1) + '%' };
+      }).filter(Boolean);
+      const valLabel = { show:true, position:'top', fontSize:10, fontWeight:600, color:'#333',
+        formatter:p=> p.value!=null ? p.value.toFixed(2) : '' };
       const option = {
         tooltip:{ trigger:'axis', valueFormatter:v=> v==null?'—':(v.toFixed(2)+'%') },
         legend:{ top:2, textStyle:{ fontSize:10 }, data:[pA,pB] },
@@ -1296,8 +1290,12 @@
         xAxis:{ type:'category', data:names, axisLabel:{ fontSize:10, interval:0, rotate: names.length>4?20:0 } },
         yAxis:{ type:'value', name:'充足率(%)', min:0, axisLabel:{ formatter:v=> (Math.round(v*10)/10) } },
         series:[
-          { name:pA, type:'bar', data:dataA, itemStyle:{ color:'#2f6fdb', borderRadius:[3,3,0,0] },          label:makeLabelNew(dataB) },
-          { name:pB, type:'bar', data:dataB, itemStyle:{ color:'#e67e22', borderRadius:[3,3,0,0] }, label:makeLabelOld() }
+          { name:pA, type:'bar', data:dataA, itemStyle:{ color:'#2f6fdb', borderRadius:[3,3,0,0] }, label:valLabel,
+            markPoint:{ silent:true, symbol:'circle', symbolSize:1, itemStyle:{ color:'transparent' },
+              label:{ show:true, position:'top', fontSize:9, fontWeight:600, color:'#c0392b',
+                formatter:function(p){ return p.data.diff; } },
+              data: diffData } },
+          { name:pB, type:'bar', data:dataB, itemStyle:{ color:'#e67e22', borderRadius:[3,3,0,0] }, label:valLabel }
         ]
       };
       const chartId = 'cmpCmp2_'+sec+'_'+(mi===0?'C':'D');
@@ -1391,70 +1389,128 @@
     document.getElementById('cmpDetail_'+sec).innerHTML = h;
   }
 
-  // 下载汇总CSV：所有期次×全部主体（汇报格式，同Excel"上市公司及其他主要公司对比"）
+  // 下载汇总CSV：格式与"上市公司及其他主要公司对比.xlsx"完全一致
+  // 结构：每个指标段(综合/核心/实际资本/核心资本/附属资本/最低资本)一行表头，
+  // 下接 集团/寿险/产险 板块的公司明细行 + 上市公司平均(合计)行；最后附银行系(仅综合/核心)。
   function exportCmpCsv(){
     const BL = window.CMP_CONFIG.blocks;
     const periods = cmpPeriods();
-    const CAP_METRICS = ['实际资本','核心资本','附属资本','最低资本'];
-    const zhMetrics = ['综合偿付能力充足率','核心偿付能力充足率'];
-    let s = '\ufeff上市公司对比\n板块,主体,' + periods.join(',') + '\n';
+    let s = '\ufeff';
+    // 充足率比率：保留6位小数(去除浮点噪声)，与Excel一致；资本(亿元)：2位
+    function num(v){ return (v==null||!isFinite(v)) ? '' : (+v.toFixed(6)).toString(); }
+    function numC(v){ return (v==null||!isFinite(v)) ? '' : v.toFixed(2); }
 
-    function capVal(ent, capMetric, p){
-      const arr = capArr(ent, capMetric);
-      const i = cmpPeriods().indexOf(p);
-      const v = (i>=0) ? arr[i] : null;
-      return v==null?'':fmtCmp(v,false);
+    function entRatio(sec, entName, metric, p){
+      const ent = BL[sec].entities.find(e=>e.name===entName); if(!ent) return '';
+      const arr = entityArr(ent, metric); const i = cmpPeriods().indexOf(p);
+      return num(i>=0 ? arr[i] : null);
     }
-    function rawCapVal(block, company, capMetric, p){
-      const o = cmpCompanyAmtMap(company, CMP_BLOCK_MAP[block], capMetric);
-      return o[p]==null?'':fmtCmp(o[p],false);
+    function entCap(sec, entName, capMetric, p){
+      const ent = BL[sec].entities.find(e=>e.name===entName); if(!ent) return '';
+      const arr = capArr(ent, capMetric); const i = cmpPeriods().indexOf(p);
+      return numC(i>=0 ? arr[i] : null);
+    }
+    function compRatio(block, company, metric, p){
+      return num(cmpCompanyRatioMap(company, block, metric)[p]);
+    }
+    function compCap(company, block, capMetric, p){
+      return numC(cmpCompanyAmtMap(company, block, capMetric)[p]);
     }
 
-    CMP_SECS.forEach(sec=>{
-      const S = BL[sec];
-      s += S.title + ',,\n';
-      S.entities.forEach(ent=>{
-        zhMetrics.forEach(metric => {
-          const arr = entityArr(ent, metric);
-          const label = metric===zhMetrics[0] ? ent.name : ent.name + '（核心）';
-          s += ',' + label + ',' + arr.map(v=> v==null?'':fmtCmp(v,false)).join(',') + '\n';
-        });
-        if(ent.src!=='reg'){
-          CAP_METRICS.forEach(cm=>{
-            s += ',└ '+cm+'(亿元),' + periods.map(p=> capVal(ent, cm, p)).join(',') + '\n';
-          });
-        }
+    const METRICS = [
+      { name:'综合偿付能力充足率', cap:false },
+      { name:'核心偿付能力充足率', cap:false },
+      { name:'实际资本', cap:true },
+      { name:'核心资本', cap:true },
+      { name:'附属资本', cap:true },
+      { name:'最低资本', cap:true }
+    ];
+    function emitBlock(sec, label, companyList, avgRows){
+      companyList.forEach((c,i)=>{
+        const a = (i===0)?label:'';
+        const vals = periods.map(p=> avgRowCap[sec] ? compCap(c,sec,METRICS_CUR, p) : compRatio(sec,c,METRICS_CUR, p));
+        s += a + ',' + c + ',' + vals.join(',') + '\n';
       });
-      // 跳过已在entities中出现的公司（避免阳光系重复）
-      const entCompanyNames = new Set(S.entities.filter(e=>e.company).map(e=>e.company));
-      const exportCompanies = S.companies.filter(c => !entCompanyNames.has(c));
-      exportCompanies.forEach(c=>{
-        zhMetrics.forEach(metric => {
-          const rVals = cmpCompanyRatioMap(c, S.dataBlock, metric);
-          const label = metric===zhMetrics[0] ? c : c + '（核心）';
-          s += ',' + label + ',' + periods.map(p=> rVals[p]==null?'':fmtCmp(rVals[p],false)).join(',') + '\n';
-        });
-        CAP_METRICS.forEach(cm=>{
-          s += ',└ '+cm+'(亿元),' + periods.map(p=> rawCapVal(S.dataBlock,c,cm,p)).join(',') + '\n';
-        });
+      avgRows.forEach(ar=>{
+        const vals = periods.map(p=> avgRowCap[sec] ? entCap(sec, ar.ent, METRICS_CUR, p) : entRatio(sec, ar.ent, METRICS_CUR, p));
+        s += ar.label + ',,' + vals.join(',') + '\n';
       });
-      if(sec==='life'){
-        CMP_CONFIG.blocks.life.lists.banks.forEach(c=>{
-          zhMetrics.forEach(metric => {
-            const rVals = cmpBankRatioMap(c, metric);
-            const label = metric===zhMetrics[0] ? ('银保系·'+c) : ('银保系·'+c+'（核心）');
-            s += ',' + label + ',' + periods.map(p=> rVals[p]==null?'':fmtCmp(rVals[p],false)).join(',') + '\n';
-          });
-          CAP_METRICS.forEach(cm=>{
-            const cVals = cmpBankAmtMap(c, cm);
-            s += ',└ '+cm+'(亿元),' + periods.map(p=> cVals[p]==null?'':fmtCmp(cVals[p],false)).join(',') + '\n';
-          });
-        });
-      }
+    }
+    let METRICS_CUR, avgRowCap = {};
+    METRICS.forEach(def=>{
+      METRICS_CUR = def.name; avgRowCap = {};
+      const cap = def.cap;
+      s += def.name + ',主体,' + periods.join(',') + '\n';
+      // 集团
+      avgRowCap.group = cap;
+      emitBlock('group', '集团', BL.group.companies,
+        [{ label:'上市公司'+(cap?'合计':'平均'), ent:'上市集团加权平均' }]);
+      // 寿险
+      avgRowCap.life = cap;
+      emitBlock('life', '寿险', BL.life.companies,
+        [{ label:'上市公司'+(cap?'合计':'平均'), ent:'上市人身险公司平均' }]);
+      // 产险
+      avgRowCap.property = cap;
+      emitBlock('property', '产险', BL.property.companies, cap ? [
+        { label:'上市公司合计-含众安', ent:'上市财险平均(含众安)' },
+        { label:'上市公司合计-不含众安', ent:'上市财险平均(不含众安)' }
+      ] : [
+        { label:'上市公司平均-含众安', ent:'上市财险平均(含众安)' },
+        { label:'上市公司平均-不含众安', ent:'上市财险平均(不含众安)' }
+      ]);
+    });
+
+    // 银行系（仅综合/核心）
+    const banks = BL.life.lists.banks;
+    ['综合偿付能力充足率','核心偿付能力充足率'].forEach(metric=>{
+      METRICS_CUR = metric;
+      s += metric + ',主体,' + periods.join(',') + '\n';
+      banks.forEach((c,i)=>{
+        const a = (i===0)?'银行系主要公司':'';
+        const vals = periods.map(p=> compRatio('life', c, metric, p));
+        s += a + ',' + c + ',' + vals.join(',') + '\n';
+      });
+      const bankEnt = BL.life.entities.find(e=>e.name==='银保系平均');
+      const arr = entityArr(bankEnt, metric);
+      s += '银行系公司合计,,' + periods.map((p,k)=> num(arr[k])).join(',') + '\n';
+    });
+
+    const blob = new Blob([s], {type:'text/csv;charset=utf-8'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = '上市公司及其他主要公司对比.csv'; a.click();
+  }
+
+  // 导出某板块（集团/财产险/人身险/再保险）的行业明细原始数据
+  function exportSegDetail(segKey){
+    if(typeof SOLVENCY_DATA==='undefined'){ alert('数据未加载'); return; }
+    const seg = SOLVENCY_DATA.segments[segKey];
+    if(!seg){ alert('未知板块：'+segKey); return; }
+    const NAMES = { group:'保险集团', property:'财产险', life:'人身险', reins:'再保险' };
+    const cols = ['C','D','I','J','K','L','M','N'];
+    const colHdr = ['综合C','核心D','实际资本I(万元)','核心一级J(万元)','核心二级K(万元)','附属一级L(万元)','附属二级M(万元)','最低资本N(万元)'];
+    // 期次列表（保持 data.js 顺序），year-end 映射为 YYQ4
+    const perRows = seg.periods.map(pd=>{
+      const label = (pd.q===4) ? ((pd.year-2000)+'Q4') : ((pd.year-2000)+'Q'+pd.q);
+      return { key: pd.key, label: label };
+    });
+    let s = '\ufeff' + (NAMES[segKey]||segKey) + ' · 行业明细（C/D为比率，I~N为万元）\n';
+    // 表头：公司 + 每期 8 列
+    s += '公司';
+    perRows.forEach(pr=>{ colHdr.forEach(h=>{ s += ','+pr.label+'-'+h; }); });
+    s += '\n';
+    seg.companies.forEach(co=>{
+      const rec = seg.data[co] || {};
+      s += co;
+      perRows.forEach(pr=>{
+        const r = rec[pr.key];
+        if(!r){ colHdr.forEach(()=>{ s += ','; }); }
+        else { cols.forEach(c=>{ s += ',' + (r[c]!=null ? r[c] : ''); }); }
+      });
+      s += '\n';
     });
     const blob = new Blob([s], {type:'text/csv;charset=utf-8'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = '上市公司对比_汇总.csv'; a.click();
+    a.download = (NAMES[segKey]||segKey) + '_行业明细.csv'; a.click();
   }
   // ---------- 分离表头列宽同步 ----------
   function syncSplitHdr(){
@@ -1482,6 +1538,7 @@
     const os=document.getElementById('overviewSingle'); if(os) os.style.display = allMode ? 'none' : '';
     const oa=document.getElementById('overviewAll'); if(oa) oa.style.display = allMode ? '' : 'none';
     const ctl=document.querySelector('.controls'); if(ctl) ctl.style.display = (allMode || cmpMode) ? 'none' : '';
+    const se=document.getElementById('segExport'); if(se) se.style.display = cmpMode ? 'none' : '';
     if(allMode){
       document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
       const po=document.getElementById('p-overview'); if(po) po.classList.add('on');
