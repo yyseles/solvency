@@ -104,7 +104,8 @@
   .cmp-table .agg{font-weight:700;background:#fff7e6}
   .cmp-table .agg td:first-child{color:var(--warn);background:#fff7e6}
   .cmp-table tr:hover td{background:#f7faff}
-  .cmp-table .sub{color:var(--sub)}
+  .cmp-table .sub{color:var(--sub);display:none}
+  .cmp-show-cap .cmp-table .sub{display:table-row}
   .cmp-table .bank{background:#f3f0fb}
   .cmp-table .bank td:first-child{background:#f3f0fb}
   .cmp-table .sun{background:#fdecea}
@@ -373,8 +374,7 @@
   <!-- 上市公司及其他主要公司对比（按板块分开展示） -->
   <section class="panel" id="p-compare">
     <div class="cmp-toolbar">
-      <span class="ctl" style="color:var(--sub)">指标：</span>
-      <select id="cmpMetric" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:13px"></select>
+      <button class="btn" id="cmpToggleCap">展开资本明细</button>
       <button class="btn" id="cmpDownload" style="margin-left:auto">下载汇总(CSV)</button>
     </div>
     <div class="note" id="cmpNote" style="margin:10px 0 6px;color:var(--sub);font-size:12.5px;line-height:1.7"></div>
