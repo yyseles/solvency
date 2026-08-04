@@ -1044,64 +1044,151 @@
   const CMP_SECS = ['group','life','property'];
   function cmpHas(obj,k){ return obj && Object.prototype.hasOwnProperty.call(obj,k); }
 
-  // 阳光系数统一取自平台偿付能力表（data.js / SOLVENCY_DATA），与平台其它公司口径一致
+  // ===== 上市公司对比：数据全部运行时从 data.js / reg_industry.js 计算，不再依赖 Excel 或静态文件 =====
   const CMP_BLOCK_MAP = {'集团':'group','人身险':'life','寿险':'life','财产险':'property','产险':'property'};
+  const AGG_BLOCK_TO_CONF = {'集团':'group','寿险':'life','产险':'property'};
   function cmpPeriodToDataKey(p){
     const yy = parseInt(p.slice(0,2),10), q = parseInt(p.slice(3),10);
     const yr = 2000 + yy;
     return (q===4) ? (''+yr) : (yr+'Q'+q);
   }
-  function sunRecord(ent){
-    const block = CMP_BLOCK_MAP[ent.block];
-    return (typeof SOLVENCY_DATA!=='undefined' && SOLVENCY_DATA.segments[block] && SOLVENCY_DATA.segments[block].data && SOLVENCY_DATA.segments[block].data[ent.company]) || {};
+  // 取 data.js 中某板块某公司的某期记录（处理期次映射）
+  function cmpDataRec(segKey, company, period){
+    if(typeof SOLVENCY_DATA==='undefined') return null;
+    const seg = SOLVENCY_DATA.segments[segKey];
+    if(!seg || !seg.data || !seg.data[company]) return null;
+    return seg.data[company][cmpPeriodToDataKey(period)] || null;
   }
-  function entityArr(ent, metric){
-    const D = window.COMPARE_DATA;
-    if(ent.src==='calc_group'){ const o=D.groupCalc[metric]||{}; return D.periods.map(p=> o[p]==null?null:o[p]); }
-    if(ent.src==='agg'){ const o=(D.agg[metric]&&D.agg[metric][ent.block]&&D.agg[metric][ent.block][ent.label])||{}; return D.periods.map(p=> o[p]==null?null:o[p]); }
-    if(ent.src==='sun'){
-      const field = (metric==='综合偿付能力充足率')?'C':'D';
-      const rec = sunRecord(ent);
-      return D.periods.map(p=>{ const r=rec[cmpPeriodToDataKey(p)]; return (r&&r[field]!=null)?r[field]:null; });
-    }
-    if(ent.src==='bank'){ const o=D.bankAgg[metric]||{}; return D.periods.map(p=> o[p]==null?null:o[p]); }
-    if(ent.src==='reg'){
-      if(typeof REG_INDUSTRY==='undefined') return D.periods.map(()=>null);
-      const ri=REG_INDUSTRY; const o=ri.data[ent.seg]||{};
-      const field = (metric==='综合偿付能力充足率')?'C':'D';
-      return D.periods.map(p=>{ const dk=(p.endsWith('Q4')?'20'+p.slice(0,2):'20'+p); const x=o[dk]; return x? x[field] : null; });
-    }
-    return D.periods.map(()=>null);
-  }
-  function capArr(ent, capMetric){
-    const D = window.COMPARE_DATA;
-    if(ent.src==='calc_group'){ const o=D.groupCalc[capMetric]||{}; return D.periods.map(p=>o[p]==null?null:o[p]); }
-    if(ent.src==='agg'){
-      const blockData = (D.agg[capMetric]&&D.agg[capMetric][ent.block])||{};
-      let o = blockData[ent.label] || blockData['上市公司合计'] || blockData['上市公司平均'] || {};
-      return D.periods.map(p=>o[p]==null?null:o[p]);
-    }
-    if(ent.src==='sun'){
-      const rec = sunRecord(ent);
-      return D.periods.map(p=>{
-        const r = rec[cmpPeriodToDataKey(p)]; if(!r) return null;
-        let v;
-        if(capMetric==='核心资本') v=(r.J||0)+(r.K||0);
-        else if(capMetric==='附属资本') v=(r.L||0)+(r.M||0);
-        else if(capMetric==='实际资本') v=r.I;
-        else if(capMetric==='最低资本') v=r.N;
-        return (v!=null)? v/10000 : null; // 万元→亿元
+  // 动态推导所有期次（YYQn 格式），data.js 新增期后自动包含
+  let _cmpPeriodsCache = null;
+  function cmpPeriods(){
+    if(_cmpPeriodsCache) return _cmpPeriodsCache;
+    const set = new Set();
+    if(typeof SOLVENCY_DATA!=='undefined'){
+      ['group','life','property'].forEach(seg=>{
+        const d = SOLVENCY_DATA.segments[seg] && SOLVENCY_DATA.segments[seg].data;
+        if(!d) return;
+        Object.values(d).forEach(coData=>{
+          Object.keys(coData).forEach(k=>{
+            let yy, q;
+            if(k.indexOf('Q')>=0){ yy=parseInt(k.slice(0,4)); q=parseInt(k.slice(5)); }
+            else { yy=parseInt(k); q=4; }
+            set.add((''+(yy-2000))+'Q'+q);
+          });
+        });
       });
     }
-    if(ent.src==='bank'){ const o=D.bankAgg[capMetric]||{}; return D.periods.map(p=>o[p]==null?null:o[p]); }
-    return D.periods.map(()=>null);
+    _cmpPeriodsCache = Array.from(set).sort();
+    return _cmpPeriodsCache;
   }
+  // 加权比率（综合=ΣI/ΣN；核心=Σ(J+K)/ΣN），返回比率（小数）
+  function cmpWeightedRatio(companies, segKey, period, isCore){
+    let ns=0, ds=0;
+    companies.forEach(c=>{
+      const r = cmpDataRec(segKey, c, period);
+      if(!r) return;
+      if(isCore){ ns += (r.J||0)+(r.K||0); } else { ns += (r.I||0); }
+      ds += (r.N||0);
+    });
+    return ds>0 ? ns/ds : null;
+  }
+  // 单公司/加权金额（亿元）
+  function cmpAmtAt(segKey, company, period, capMetric){
+    const r = cmpDataRec(segKey, company, period);
+    if(!r) return null;
+    let v;
+    if(capMetric==='实际资本') v=r.I;
+    else if(capMetric==='核心资本') v=(r.J||0)+(r.K||0);
+    else if(capMetric==='附属资本') v=(r.L||0)+(r.M||0);
+    else if(capMetric==='最低资本') v=r.N;
+    else return null;
+    return (v!=null) ? v/10000 : null; // data.js 金额单位：万元 → 亿元
+  }
+  function cmpWeightedAmt(companies, segKey, period, capMetric){
+    let s=0, any=false;
+    companies.forEach(c=>{
+      const r = cmpDataRec(segKey, c, period);
+      if(!r) return;
+      let v;
+      if(capMetric==='实际资本') v=r.I;
+      else if(capMetric==='核心资本') v=(r.J||0)+(r.K||0);
+      else if(capMetric==='附属资本') v=(r.L||0)+(r.M||0);
+      else if(capMetric==='最低资本') v=r.N;
+      else return;
+      if(v!=null){ s += v; any=true; }
+    });
+    return any ? s/10000 : null;
+  }
+  function entityArr(ent, metric){
+    const periods = cmpPeriods();
+    const isCore = (metric==='核心偿付能力充足率');
+    if(ent.src==='calc_group'){
+      const cos = CMP_CONFIG.blocks.group.lists.allForCalc;
+      return periods.map(p=> cmpWeightedRatio(cos, 'group', p, isCore));
+    }
+    if(ent.src==='agg'){
+      const confKey = AGG_BLOCK_TO_CONF[ent.block];
+      const cos = CMP_CONFIG.blocks[confKey].lists[ent.excl];
+      return periods.map(p=> cmpWeightedRatio(cos, CMP_BLOCK_MAP[ent.block], p, isCore));
+    }
+    if(ent.src==='sun'){
+      const segKey = CMP_BLOCK_MAP[ent.block];
+      const field = isCore ? 'D' : 'C';
+      return periods.map(p=>{ const r=cmpDataRec(segKey, ent.company, p); return (r&&r[field]!=null)?r[field]:null; });
+    }
+    if(ent.src==='bank'){
+      const cos = CMP_CONFIG.blocks.life.lists.banks;
+      return periods.map(p=> cmpWeightedRatio(cos, 'life', p, isCore));
+    }
+    if(ent.src==='reg'){
+      if(typeof REG_INDUSTRY==='undefined') return periods.map(()=>null);
+      const o = REG_INDUSTRY.data[ent.seg]||{};
+      const field = isCore ? 'D' : 'C';
+      return periods.map(p=>{ const dk=(p.endsWith('Q4')?'20'+p.slice(0,2):'20'+p); const x=o[dk]; return x? x[field] : null; });
+    }
+    return periods.map(()=>null);
+  }
+  function capArr(ent, capMetric){
+    const periods = cmpPeriods();
+    if(ent.src==='calc_group'){
+      const cos = CMP_CONFIG.blocks.group.lists.allForCalc;
+      return periods.map(p=> cmpWeightedAmt(cos, 'group', p, capMetric));
+    }
+    if(ent.src==='agg'){
+      const confKey = AGG_BLOCK_TO_CONF[ent.block];
+      const cos = CMP_CONFIG.blocks[confKey].lists[ent.excl];
+      return periods.map(p=> cmpWeightedAmt(cos, CMP_BLOCK_MAP[ent.block], p, capMetric));
+    }
+    if(ent.src==='sun'){
+      const segKey = CMP_BLOCK_MAP[ent.block];
+      return periods.map(p=> cmpAmtAt(segKey, ent.company, p, capMetric));
+    }
+    if(ent.src==='bank'){
+      const cos = CMP_CONFIG.blocks.life.lists.banks;
+      return periods.map(p=> cmpWeightedAmt(cos, 'life', p, capMetric));
+    }
+    return periods.map(()=>null);
+  }
+  // 单公司比率/金额序列（对象 period->值），供明细表与 CSV 使用
+  function cmpCompanyRatioMap(company, segKey, metric){
+    const field = (metric==='综合偿付能力充足率')?'C':'D';
+    const periods = cmpPeriods(); const o = {};
+    periods.forEach(p=>{ const r=cmpDataRec(segKey, company, p); o[p]=(r&&r[field]!=null)?r[field]:null; });
+    return o;
+  }
+  function cmpCompanyAmtMap(company, segKey, capMetric){
+    const periods = cmpPeriods(); const o = {};
+    periods.forEach(p=>{ o[p]=cmpAmtAt(segKey, company, p, capMetric); });
+    return o;
+  }
+  function cmpBankRatioMap(company, metric){ return cmpCompanyRatioMap(company, 'life', metric); }
+  function cmpBankAmtMap(company, capMetric){ return cmpCompanyAmtMap(company, 'life', capMetric); }
 
   let cmpCharts = {};
   let cmpCapVisible = false;
   let cmpCmpPeriods = {}; // {sec:{A,B}}
   function cmpDisplayPeriods(sec){
-    const periods = window.COMPARE_DATA.periods;
+    const periods = cmpPeriods();
     return (sec==='group') ? periods.filter(p=> p.endsWith('Q2')||p.endsWith('Q4')) : periods;
   }
   function yearOf(p){ return 2000 + parseInt(p.slice(0,2),10); }
@@ -1114,14 +1201,14 @@
     return { A: latest, B: prev };
   }
   function cmpEntityValAt(ent, metric, p){
-    const D = window.COMPARE_DATA;
-    const i = D.periods.indexOf(p);
+    const BL = window.CMP_CONFIG.blocks;
+    const i = cmpPeriods().indexOf(p);
     if(i<0) return null;
     const arr = entityArr(ent, metric);
     return arr[i];
   }
   function renderCompare(){
-    const D = window.COMPARE_DATA; if(!D) return;
+    const BL = window.CMP_CONFIG.blocks;
     document.getElementById('cmpNote').innerHTML =
       '口径：综合充足率 = Σ(实际资本)/Σ(最低资本)；核心充足率 = Σ(核心资本)/Σ(最低资本)（核心资本=核心一级+核心二级）。'
       + '「上市平均」<b>不含阳光系</b>；产险分「含众安 / 不含众安」两口径。'
@@ -1145,8 +1232,8 @@
   }
 
   function renderSecTrend(sec){
-    const D = window.COMPARE_DATA;
-    const S = D.sections[sec];
+    const BL = window.CMP_CONFIG.blocks;
+    const S = BL[sec];
     const displayPeriods = cmpDisplayPeriods(sec);
     const colors = ['#2f6fdb','#16a085','#8e44ad','#c0392b','#e67e22','#f39c12','#7f8c8d','#3498db'];
     const zhMetrics = ['综合偿付能力充足率','核心偿付能力充足率'];
@@ -1155,7 +1242,7 @@
       S.entities.forEach((ent, ei)=>{
         const rawArr = entityArr(ent, metric);
         const data = displayPeriods.map(p=>{
-          const i = D.periods.indexOf(p);
+          const i = cmpPeriods().indexOf(p);
           const v = (i>=0)? rawArr[i] : null;
           return (v==null)? null : (ent.src==='reg'? v : pctVal(v));
         });
@@ -1188,8 +1275,8 @@
   }
 
   function renderSecCompare(sec){
-    const D = window.COMPARE_DATA;
-    const S = D.sections[sec];
+    const BL = window.CMP_CONFIG.blocks;
+    const S = BL[sec];
     const colors = ['#2f6fdb','#16a085','#8e44ad','#c0392b','#e67e22','#f39c12','#7f8c8d','#3498db'];
     const pA = cmpCmpPeriods[sec].A, pB = cmpCmpPeriods[sec].B;
     const zhMetrics = ['综合偿付能力充足率','核心偿付能力充足率'];
@@ -1220,9 +1307,9 @@
   }
 
   function renderSecTable(sec){
-    const D = window.COMPARE_DATA;
-    const S = D.sections[sec];
-    const periods = D.periods;
+    const BL = window.CMP_CONFIG.blocks;
+    const S = BL[sec];
+    const periods = cmpPeriods();
     const displayPeriods = (sec==='group') ? periods.filter(p=> p.endsWith('Q2')||p.endsWith('Q4')) : periods;
     const CAP_METRICS = ['实际资本','核心资本','附属资本','最低资本'];
     const zhMetrics = ['综合偿付能力充足率','核心偿付能力充足率'];
@@ -1234,7 +1321,7 @@
 
     // 公司列表（去重阳光系，避免与 entities 中汇总行重复）
     const allCompanies = [...S.companies];
-    if(sec==='life') allCompanies.push(...D.bankCompanies.map(n=>({name:n,isBank:true})));
+    if(sec==='life') allCompanies.push(...CMP_CONFIG.blocks.life.lists.banks.map(n=>({name:n,isBank:true})));
     const entityCompanyNames = new Set(S.entities.filter(e=>e.company).map(e=>e.company));
     const filteredCompanies = allCompanies.filter(item=>{
       const c = item.name || item;
@@ -1277,8 +1364,8 @@
         const isBank = item.isBank || false;
         const cls = (c.indexOf('阳光')>=0) ? 'sun' : (isBank ? 'bank' : '');
         const rVals = isBank
-          ? ((D.bankRaw[metric]&&D.bankRaw[metric][c])||{})
-          : ((D.raw[metric]&&D.raw[metric][S.block]&&D.raw[metric][S.block][c])||{});
+          ? cmpBankRatioMap(c, metric)
+          : cmpCompanyRatioMap(c, S.dataBlock, metric);
         const dispVals = (sec==='group')
           ? periods.map(p=> rVals[p]).filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4'))
           : periods.map(p=> rVals[p]);
@@ -1287,8 +1374,8 @@
         h += '</tr>';
         CAP_METRICS.forEach(cmName=>{
           const cVals = isBank
-            ? ((D.bankRaw[cmName]&&D.bankRaw[cmName][c])||{})
-            : ((D.raw[cmName]&&D.raw[cmName][S.block]&&D.raw[cmName][S.block][c])||{});
+            ? cmpBankAmtMap(c, cmName)
+            : cmpCompanyAmtMap(c, S.dataBlock, cmName);
           const dispCVals = (sec==='group')
             ? periods.map(p=> cVals[p]).filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4'))
             : periods.map(p=> cVals[p]);
@@ -1304,30 +1391,25 @@
   }
 
       function exportCmpCsv(){
-    const D = window.COMPARE_DATA; if(!D) return;
-    const periods = D.periods;
+    const BL = window.CMP_CONFIG.blocks;
+    const periods = cmpPeriods();
     const CAP_METRICS = ['实际资本','核心资本','附属资本','最低资本'];
     const zhMetrics = ['综合偿付能力充足率','核心偿付能力充足率'];
     let s = '上市公司对比\n板块,主体,' + periods.join(',') + '\n';
 
     function capVal(ent, capMetric, p){
-      if(ent.src==='calc_group'){ const o=D.groupCalc[capMetric]||{}; return o[p]==null?'':o[p]; }
-      if(ent.src==='agg'){
-        const blockData = (D.agg[capMetric]&&D.agg[capMetric][ent.block])||{};
-        const o = blockData[ent.label] || blockData['上市公司合计'] || blockData['上市公司平均'] || {};
-        return o[p]==null?'':o[p];
-      }
-      if(ent.src==='sun'){ const o=(D.raw[capMetric]&&D.raw[capMetric][ent.block]&&D.raw[capMetric][ent.block][ent.company])||{}; return o[p]==null?'':o[p]; }
-      if(ent.src==='bank'){ const o=D.bankAgg[capMetric]||{}; return o[p]==null?'':o[p]; }
-      return '';
+      const arr = capArr(ent, capMetric);
+      const i = cmpPeriods().indexOf(p);
+      const v = (i>=0) ? arr[i] : null;
+      return v==null?'':v;
     }
     function rawCapVal(block, company, capMetric, p){
-      const o=(D.raw[capMetric]&&D.raw[capMetric][block]&&D.raw[capMetric][block][company])||{};
+      const o = cmpCompanyAmtMap(company, CMP_BLOCK_MAP[block], capMetric);
       return o[p]==null?'':o[p];
     }
 
     CMP_SECS.forEach(sec=>{
-      const S = D.sections[sec];
+      const S = BL[sec];
       s += S.title + ',,' + '\n';
       S.entities.forEach(ent=>{
         zhMetrics.forEach(metric => {
@@ -1346,23 +1428,23 @@
       const exportCompanies = S.companies.filter(c => !entCompanyNames.has(c));
       exportCompanies.forEach(c=>{
         zhMetrics.forEach(metric => {
-          const rVals = (D.raw[metric]&&D.raw[metric][S.block]&&D.raw[metric][S.block][c])||{};
+          const rVals = cmpCompanyRatioMap(c, S.dataBlock, metric);
           const label = metric===zhMetrics[0] ? c : c + '（核心）';
           s += ',' + label + ',' + periods.map(p=> rVals[p]==null?'':rVals[p]).join(',') + '\n';
         });
         CAP_METRICS.forEach(cm=>{
-          s += ',└ '+cm+'(亿元),' + periods.map(p=> rawCapVal(S.block,c,cm,p)).join(',') + '\n';
+          s += ',└ '+cm+'(亿元),' + periods.map(p=> rawCapVal(S.dataBlock,c,cm,p)).join(',') + '\n';
         });
       });
       if(sec==='life'){
-        D.bankCompanies.forEach(c=>{
+        CMP_CONFIG.blocks.life.lists.banks.forEach(c=>{
           zhMetrics.forEach(metric => {
-            const rVals = (D.bankRaw[metric]&&D.bankRaw[metric][c])||{};
+            const rVals = cmpBankRatioMap(c, metric);
             const label = metric===zhMetrics[0] ? ('银保系·'+c) : ('银保系·'+c+'（核心）');
             s += ',' + label + ',' + periods.map(p=> rVals[p]==null?'':rVals[p]).join(',') + '\n';
           });
           CAP_METRICS.forEach(cm=>{
-            const cVals = (D.bankRaw[cm]&&D.bankRaw[cm][c])||{};
+            const cVals = cmpBankAmtMap(c, cm);
             s += ',└ '+cm+'(亿元),' + periods.map(p=> cVals[p]==null?'':cVals[p]).join(',') + '\n';
           });
         });
