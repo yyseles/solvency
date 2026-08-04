@@ -1099,7 +1099,12 @@
     // 辅助：取某主体的某金额指标序列
     function capArr(ent, capMetric){
       if(ent.src==='calc_group'){ const o=D.groupCalc[capMetric]||{}; return periods.map(p=>o[p]==null?null:o[p]); }
-      if(ent.src==='agg'){ const o=(D.agg[capMetric]&&D.agg[capMetric][ent.block]&&D.agg[capMetric][ent.block][ent.label])||{}; return periods.map(p=>o[p]==null?null:o[p]); }
+      if(ent.src==='agg'){
+        const blockData = (D.agg[capMetric]&&D.agg[capMetric][ent.block])||{};
+        // 金额类指标 key 为"上市公司合计"，比率类为"上市公司平均"
+        let o = blockData[ent.label] || blockData['上市公司合计'] || blockData['上市公司平均'] || {};
+        return periods.map(p=>o[p]==null?null:o[p]);
+      }
       if(ent.src==='sun'){ const o=(D.raw[capMetric]&&D.raw[capMetric][ent.block]&&D.raw[capMetric][ent.block][ent.company])||{}; return periods.map(p=>o[p]==null?null:o[p]); }
       if(ent.src==='bank'){ const o=D.bankAgg[capMetric]||{}; return periods.map(p=>o[p]==null?null:o[p]); }
       return periods.map(()=>null);
@@ -1163,7 +1168,11 @@
     // 辅助
     function capVal(ent, capMetric, p){
       if(ent.src==='calc_group'){ const o=D.groupCalc[capMetric]||{}; return o[p]==null?'':o[p]; }
-      if(ent.src==='agg'){ const o=(D.agg[capMetric]&&D.agg[capMetric][ent.block]&&D.agg[capMetric][ent.block][ent.label])||{}; return o[p]==null?'':o[p]; }
+      if(ent.src==='agg'){
+        const blockData = (D.agg[capMetric]&&D.agg[capMetric][ent.block])||{};
+        const o = blockData[ent.label] || blockData['上市公司合计'] || blockData['上市公司平均'] || {};
+        return o[p]==null?'':o[p];
+      }
       if(ent.src==='sun'){ const o=(D.raw[capMetric]&&D.raw[capMetric][ent.block]&&D.raw[capMetric][ent.block][ent.company])||{}; return o[p]==null?'':o[p]; }
       if(ent.src==='bank'){ const o=D.bankAgg[capMetric]||{}; return o[p]==null?'':o[p]; }
       return '';
