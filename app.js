@@ -935,6 +935,7 @@
         document.getElementById('tabs').style.display='none';
         const ctl=document.querySelector('.controls'); if(ctl) ctl.style.display='none';
         const se=document.getElementById('segExportBtn'); if(se) se.style.display='none';
+        const sp=document.getElementById('segExportPeriod'); if(sp) sp.style.display='none';
         document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
         document.getElementById('p-compare').classList.add('on');
         renderCompare();
@@ -943,9 +944,13 @@
       }
       loadSeg(b.dataset.seg); applySegMode(); refreshTimeBased();
     });
-    // 行业明细导出按钮（当前板块）
+    // 行业明细导出按钮（当前板块 + 期次选择）
     const seb = document.getElementById('segExportBtn');
-    if(seb) seb.onclick = ()=> exportSegDetail(S.seg);
+    if(seb) seb.onclick = ()=> {
+      const sp = document.getElementById('segExportPeriod');
+      const selPeriod = (sp && sp.value && sp.value!=='all') ? sp.value : null;
+      exportSegDetail(S.seg, selPeriod);
+    };
     // 数据管理（已移除"数据"按钮及浮层）
     document.getElementById('rangeStart').onchange=e=>{S.range[0]=+e.target.value; if(S.range[0]>S.range[1])S.range[1]=S.range[0]; refreshTimeBased();};
     document.getElementById('rangeEnd').onchange=e=>{S.range[1]=+e.target.value; if(S.range[1]<S.range[0])S.range[0]=S.range[1]; refreshTimeBased();};
@@ -1272,31 +1277,29 @@
         dataA.push(va==null?null:(ent.src==='reg'?va:pctVal(va)));
         dataB.push(vb==null?null:(ent.src==='reg'?vb:pctVal(vb)));
       });
-      // 标签：新期(系列A)显示值+差异，旧期(系列B)只显示值；差异不带%
-      const labelNew = {
-        show:true, position:'top', fontSize:10, fontWeight:600, color:'#333', lineHeight:14,
-        rich:{ v:{fontSize:10,fontWeight:600,color:'#333'}, d:{fontSize:9,color:'#c0392b',padding:[0,0,1,0]} },
-        formatter:function(p){
-          if(p.value==null) return '';
-          const val = p.value.toFixed(2);
-          const ov = dataB[p.dataIndex];
-          if(ov==null) return val;
-          const d = p.value - ov;
-          const sign = d >= 0 ? '+' : '';
-          return '{v|'+val+'}\n{d|'+sign+d.toFixed(1)+'}';
-        }
-      };
-      const labelOld = { show:true, position:'top', fontSize:10, fontWeight:600, color:'#333',
+      // 差异数据（新期-旧期）
+      const diffData = dataA.map((v,i)=> (v!=null && dataB[i]!=null) ? +(v - dataB[i]).toFixed(1) : null);
+      const barLabel = { show:true, position:'top', fontSize:10, fontWeight:600, color:'#333',
         formatter:p=> p.value!=null ? p.value.toFixed(2) : '' };
       const option = {
         tooltip:{ trigger:'axis', valueFormatter:v=> v==null?'—':(v.toFixed(2)+'%') },
-        legend:{ top:2, textStyle:{ fontSize:10 }, data:[pA,pB] },
-        grid:{ left:58, right:22, top:48, bottom:30 },
+        legend:{ top:2, textStyle:{ fontSize:10 }, data:[pA,pB,'差异'] },
+        grid:{ left:58, right:50, top:36, bottom:30 },
         xAxis:{ type:'category', data:names, axisLabel:{ fontSize:10, interval:0, rotate: names.length>4?20:0 } },
-        yAxis:{ type:'value', name:'充足率(%)', min:0, axisLabel:{ formatter:v=> (Math.round(v*10)/10) } },
+        yAxis:[
+          { type:'value', name:'充足率(%)', min:0, axisLabel:{ formatter:v=> (Math.round(v*10)/10) } },
+          { type:'value', name:'差异(%)', min:null, axisLabel:{ formatter:v=> v.toFixed(1), color:'#c0392b' },
+            axisLine:{ lineStyle:{ color:'#c0392b' } }, splitLine:{ show:false } }
+        ],
         series:[
-          { name:pA, type:'bar', data:dataA, itemStyle:{ color:'#2f6fdb', borderRadius:[3,3,0,0] }, label:labelNew },
-          { name:pB, type:'bar', data:dataB, itemStyle:{ color:'#e67e22', borderRadius:[3,3,0,0] }, label:labelOld }
+          { name:pA, type:'bar', data:dataA, itemStyle:{ color:'#2f6fdb', borderRadius:[3,3,0,0] }, label:barLabel },
+          { name:pB, type:'bar', data:dataB, itemStyle:{ color:'#e67e22', borderRadius:[3,3,0,0] }, label:barLabel },
+          { name:'差异', type:'line', yAxisIndex:1, data:diffData,
+            itemStyle:{ color:'#c0392b' }, symbol:'circle', symbolSize:6,
+            lineStyle:{ width:2 },
+            label:{ show:true, position:'top', fontSize:9, fontWeight:600, color:'#c0392b',
+              formatter:p=> p.value!=null ? ((p.value>=0?'+':'')+p.value+'') : '' }
+          }
         ]
       };
       const chartId = 'cmpCmp2_'+sec+'_'+(mi===0?'C':'D');
@@ -1481,8 +1484,24 @@
     a.download = '上市公司及其他主要公司对比.csv'; a.click();
   }
 
+  // 填充导出期次下拉（全部期间 + 各期次）
+  function populateSegExportPeriods(segKey){
+    const sel = document.getElementById('segExportPeriod');
+    if(!sel) return;
+    const seg = (typeof SOLVENCY_DATA!=='undefined') && SOLVENCY_DATA.segments[segKey];
+    if(!seg){ sel.style.display='none'; return; }
+    const opts = ['<option value="all">全部期间</option>'];
+    seg.periods.forEach(pd=>{
+      const label = (pd.q===4) ? ((pd.year-2000)+'Q4') : ((pd.year-2000)+'Q'+pd.q);
+      opts.push('<option value="'+label+'">'+label+'</option>');
+    });
+    sel.innerHTML = opts.join('');
+    sel.style.display = '';
+  }
+
   // 导出某板块（集团/财产险/人身险/再保险）的行业明细原始数据
-  function exportSegDetail(segKey){
+  // period: null=全部期间, 否则如'26Q1'
+  function exportSegDetail(segKey, period){
     if(typeof SOLVENCY_DATA==='undefined'){ alert('数据未加载'); return; }
     const seg = SOLVENCY_DATA.segments[segKey];
     if(!seg){ alert('未知板块：'+segKey); return; }
@@ -1490,10 +1509,15 @@
     const cols = ['C','D','I','J','K','L','M','N'];
     const colHdr = ['综合C','核心D','实际资本I(万元)','核心一级J(万元)','核心二级K(万元)','附属一级L(万元)','附属二级M(万元)','最低资本N(万元)'];
     // 期次列表（保持 data.js 顺序），year-end 映射为 YYQ4
-    const perRows = seg.periods.map(pd=>{
+    let perRows = seg.periods.map(pd=>{
       const label = (pd.q===4) ? ((pd.year-2000)+'Q4') : ((pd.year-2000)+'Q'+pd.q);
       return { key: pd.key, label: label };
     });
+    // 指定期次则只导出该期
+    if(period){
+      perRows = perRows.filter(pr => pr.label === period);
+    }
+    const periodSuffix = period ? ('_'+period) : '';
     let s = '\ufeff' + (NAMES[segKey]||segKey) + ' · 行业明细（C/D为比率，I~N为万元）\n';
     // 表头：公司 + 每期 8 列
     s += '公司';
@@ -1511,7 +1535,7 @@
     });
     const blob = new Blob([s], {type:'text/csv;charset=utf-8'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = (NAMES[segKey]||segKey) + '_行业明细.csv'; a.click();
+    a.download = (NAMES[segKey]||segKey) + '_行业明细' + periodSuffix + '.csv'; a.click();
   }
   // ---------- 分离表头列宽同步 ----------
   function syncSplitHdr(){
@@ -1540,6 +1564,10 @@
     const oa=document.getElementById('overviewAll'); if(oa) oa.style.display = allMode ? '' : 'none';
     const ctl=document.querySelector('.controls'); if(ctl) ctl.style.display = (allMode || cmpMode) ? 'none' : '';
     const se=document.getElementById('segExportBtn'); if(se) se.style.display = (allMode || cmpMode) ? 'none' : '';
+    const sp=document.getElementById('segExportPeriod'); if(sp){
+      sp.style.display = (allMode || cmpMode) ? 'none' : '';
+      if(!allMode && !cmpMode){ populateSegExportPeriods(S.seg); }
+    }
     if(allMode){
       document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
       const po=document.getElementById('p-overview'); if(po) po.classList.add('on');
