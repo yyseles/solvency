@@ -934,7 +934,7 @@
       if(b.dataset.seg==='compare'){
         document.getElementById('tabs').style.display='none';
         const ctl=document.querySelector('.controls'); if(ctl) ctl.style.display='none';
-        const se=document.getElementById('segExport'); if(se) se.style.display='none';
+        const se=document.getElementById('segExportRow'); if(se) se.style.display='none';
         document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
         document.getElementById('p-compare').classList.add('on');
         renderCompare();
@@ -944,7 +944,7 @@
       loadSeg(b.dataset.seg); applySegMode(); refreshTimeBased();
     });
     // 四个板块行业明细导出
-    document.querySelectorAll('#segExport button[data-export-seg]').forEach(b=>{
+    document.querySelectorAll('#segExportRow button[data-export-seg]').forEach(b=>{
       b.onclick=()=> exportSegDetail(b.dataset.exportSeg);
     });
     // 数据管理（已移除"数据"按钮及浮层）
@@ -1273,29 +1273,31 @@
         dataA.push(va==null?null:(ent.src==='reg'?va:pctVal(va)));
         dataB.push(vb==null?null:(ent.src==='reg'?vb:pctVal(vb)));
       });
-      // 差异标记点：置于两根柱子中间偏上高度，显示差异(百分数, 即百分点)
-      const diffData = dataA.map((v,i)=>{
-        if(v==null || dataB[i]==null) return null;
-        const mid = (v + dataB[i]) / 2;
-        const d = v - dataB[i];
-        const sign = d >= 0 ? '+' : '';
-        return { coord:[names[i], mid], diff: sign + d.toFixed(1) + '%' };
-      }).filter(Boolean);
-      const valLabel = { show:true, position:'top', fontSize:10, fontWeight:600, color:'#333',
+      // 标签：新期(系列A)显示值+差异，旧期(系列B)只显示值；差异不带%
+      const labelNew = {
+        show:true, position:'top', fontSize:10, fontWeight:600, color:'#333', lineHeight:14,
+        rich:{ v:{fontSize:10,fontWeight:600,color:'#333'}, d:{fontSize:9,color:'#c0392b',padding:[0,0,1,0]} },
+        formatter:function(p){
+          if(p.value==null) return '';
+          const val = p.value.toFixed(2);
+          const ov = dataB[p.dataIndex];
+          if(ov==null) return val;
+          const d = p.value - ov;
+          const sign = d >= 0 ? '+' : '';
+          return '{v|'+val+'}\n{d|'+sign+d.toFixed(1)+'}';
+        }
+      };
+      const labelOld = { show:true, position:'top', fontSize:10, fontWeight:600, color:'#333',
         formatter:p=> p.value!=null ? p.value.toFixed(2) : '' };
       const option = {
         tooltip:{ trigger:'axis', valueFormatter:v=> v==null?'—':(v.toFixed(2)+'%') },
         legend:{ top:2, textStyle:{ fontSize:10 }, data:[pA,pB] },
-        grid:{ left:58, right:22, top:52, bottom:30 },
+        grid:{ left:58, right:22, top:48, bottom:30 },
         xAxis:{ type:'category', data:names, axisLabel:{ fontSize:10, interval:0, rotate: names.length>4?20:0 } },
         yAxis:{ type:'value', name:'充足率(%)', min:0, axisLabel:{ formatter:v=> (Math.round(v*10)/10) } },
         series:[
-          { name:pA, type:'bar', data:dataA, itemStyle:{ color:'#2f6fdb', borderRadius:[3,3,0,0] }, label:valLabel,
-            markPoint:{ silent:true, symbol:'circle', symbolSize:1, itemStyle:{ color:'transparent' },
-              label:{ show:true, position:'top', fontSize:9, fontWeight:600, color:'#c0392b',
-                formatter:function(p){ return p.data.diff; } },
-              data: diffData } },
-          { name:pB, type:'bar', data:dataB, itemStyle:{ color:'#e67e22', borderRadius:[3,3,0,0] }, label:valLabel }
+          { name:pA, type:'bar', data:dataA, itemStyle:{ color:'#2f6fdb', borderRadius:[3,3,0,0] }, label:labelNew },
+          { name:pB, type:'bar', data:dataB, itemStyle:{ color:'#e67e22', borderRadius:[3,3,0,0] }, label:labelOld }
         ]
       };
       const chartId = 'cmpCmp2_'+sec+'_'+(mi===0?'C':'D');
@@ -1538,7 +1540,7 @@
     const os=document.getElementById('overviewSingle'); if(os) os.style.display = allMode ? 'none' : '';
     const oa=document.getElementById('overviewAll'); if(oa) oa.style.display = allMode ? '' : 'none';
     const ctl=document.querySelector('.controls'); if(ctl) ctl.style.display = (allMode || cmpMode) ? 'none' : '';
-    const se=document.getElementById('segExport'); if(se) se.style.display = cmpMode ? 'none' : '';
+    const se=document.getElementById('segExportRow'); if(se) se.style.display = (allMode || cmpMode) ? 'none' : '';
     if(allMode){
       document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
       const po=document.getElementById('p-overview'); if(po) po.classList.add('on');

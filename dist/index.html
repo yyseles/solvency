@@ -189,15 +189,14 @@
   <span class="meta" id="segMeta"></span>
 </nav>
 
-<div class="seg-export" id="segExport" style="display:flex;gap:8px;align-items:center;padding:6px 26px;font-size:13px;color:var(--sub)">
-  <span>导出行业明细：</span>
-  <button class="btn" data-export-seg="group">保险集团</button>
-  <button class="btn" data-export-seg="property">财产险</button>
-  <button class="btn" data-export-seg="life">人身险</button>
-  <button class="btn" data-export-seg="reins">再保险</button>
-</div>
-
-<div class="controls">
+<div class="controls" id="controls">
+  <div class="ctl" id="segExportRow" style="display:none;gap:8px;align-items:center;font-size:13px;color:var(--sub);margin-bottom:4px">
+    <span>导出行业明细：</span>
+    <button class="btn" data-export-seg="group">保险集团</button>
+    <button class="btn" data-export-seg="property">财产险</button>
+    <button class="btn" data-export-seg="life">人身险</button>
+    <button class="btn" data-export-seg="reins">再保险</button>
+  </div>
   <div class="ctl"><span>时间范围：</span>
     <select id="rangeStart"></select><span>—</span><select id="rangeEnd"></select>
   </div>
