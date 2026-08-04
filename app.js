@@ -1571,6 +1571,15 @@
     if(allMode){
       document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
       const po=document.getElementById('p-overview'); if(po) po.classList.add('on');
+    } else if(cmpMode){
+      // compare 模式：segtab 处理器已设置 p-compare 为 on
+    } else {
+      // 主面板（集团/财产险/人身险/再保险）：恢复当前激活子面板
+      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+      const activeTab = document.querySelector('#tabs button.on');
+      const pId = (activeTab && activeTab.dataset.p) ? ('p-'+activeTab.dataset.p) : 'p-overview';
+      const panel = document.getElementById(pId);
+      if(panel) panel.classList.add('on'); else { const po=document.getElementById('p-overview'); if(po) po.classList.add('on'); }
     }
   }
   function start(){
