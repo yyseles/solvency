@@ -505,12 +505,12 @@
           return h;
         }
       },
-      legend:{data:[...MC_COMP.map(c=>c.n),'最低资本合计(N)'],top:0,type:'scroll',textStyle:{fontSize:11}},
-      grid:{left:50,right:55,top:42,bottom:55},
-      xAxis:{type:'category',data:labels,axisLabel:{rotate:35}},
+      legend:{data:[...MC_COMP.map(c=>c.n),'最低资本合计(N)'],top:0,type:'scroll',textStyle:{fontSize:11},itemWidth:14,itemHeight:10,itemGap:8},
+      grid:{left:55,right:65,top:55,bottom:70},
+      xAxis:{type:'category',data:labels,axisLabel:{rotate:40,fontSize:10,interval:'auto'}},
       yAxis:[
-        {type:'value',name:'占N比例%',axisLabel:{formatter:v=>v.toFixed(0)+'%'}},
-        {type:'value',name:'金额',axisLabel:{formatter:v=>yi(v)}}
+        {type:'value',name:'占N比例%',axisLabel:{formatter:v=>v.toFixed(0)+'%',fontSize:10},nameTextStyle:{fontSize:11}},
+        {type:'value',name:'金额(万元)',axisLabel:{formatter:v=>yi(v),fontSize:10},nameTextStyle:{fontSize:11}}
       ],
       series:[
         ...barSeries,
@@ -543,12 +543,12 @@
           return h;
         }
       },
-      legend:{data:[...MC_COMP.map(c=>c.n),'行业最低资本合计(N)'],top:0,type:'scroll',textStyle:{fontSize:11}},
-      grid:{left:50,right:55,top:42,bottom:55},
-      xAxis:{type:'category',data:labels,axisLabel:{rotate:35}},
+      legend:{data:[...MC_COMP.map(c=>c.n),'行业最低资本合计(N)'],top:0,type:'scroll',textStyle:{fontSize:11},itemWidth:14,itemHeight:10,itemGap:8},
+      grid:{left:55,right:65,top:55,bottom:70},
+      xAxis:{type:'category',data:labels,axisLabel:{rotate:40,fontSize:10,interval:'auto'}},
       yAxis:[
-        {type:'value',name:'占N比例%',axisLabel:{formatter:v=>v.toFixed(0)+'%'}},
-        {type:'value',name:'金额',axisLabel:{formatter:v=>yi(v)}}
+        {type:'value',name:'占N比例%',axisLabel:{formatter:v=>v.toFixed(0)+'%',fontSize:10},nameTextStyle:{fontSize:11}},
+        {type:'value',name:'金额(万元)',axisLabel:{formatter:v=>yi(v),fontSize:10},nameTextStyle:{fontSize:11}}
       ],
       series:[
         ...barSeries,
