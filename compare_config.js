@@ -47,8 +47,8 @@ window.CMP_CONFIG = {
         { name: '阳光财险', src: 'sun', block: '产险', company: '阳光财产' }
       ],
       lists: {
-        listedInclZhongan: ['平安产险', '人保财险', '太保财险', '太平财险', '众安财产', '大地财产', '阳光财产'],
-        listedExclZhongan: ['平安产险', '人保财险', '太保财险', '太平财险', '大地财产', '阳光财产']
+        listedInclZhongan: ['平安产险', '人保财险', '太保财险', '太平财险', '众安财产', '大地财产'],
+        listedExclZhongan: ['平安产险', '人保财险', '太保财险', '太平财险', '大地财产']
       }
     }
   }

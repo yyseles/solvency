@@ -934,7 +934,7 @@
       if(b.dataset.seg==='compare'){
         document.getElementById('tabs').style.display='none';
         const ctl=document.querySelector('.controls'); if(ctl) ctl.style.display='none';
-        const se=document.getElementById('segExportRow'); if(se) se.style.display='none';
+        const se=document.getElementById('segExportBtn'); if(se) se.style.display='none';
         document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
         document.getElementById('p-compare').classList.add('on');
         renderCompare();
@@ -943,10 +943,9 @@
       }
       loadSeg(b.dataset.seg); applySegMode(); refreshTimeBased();
     });
-    // 四个板块行业明细导出
-    document.querySelectorAll('#segExportRow button[data-export-seg]').forEach(b=>{
-      b.onclick=()=> exportSegDetail(b.dataset.exportSeg);
-    });
+    // 行业明细导出按钮（当前板块）
+    const seb = document.getElementById('segExportBtn');
+    if(seb) seb.onclick = ()=> exportSegDetail(S.seg);
     // 数据管理（已移除"数据"按钮及浮层）
     document.getElementById('rangeStart').onchange=e=>{S.range[0]=+e.target.value; if(S.range[0]>S.range[1])S.range[1]=S.range[0]; refreshTimeBased();};
     document.getElementById('rangeEnd').onchange=e=>{S.range[1]=+e.target.value; if(S.range[1]<S.range[0])S.range[0]=S.range[1]; refreshTimeBased();};
@@ -1540,7 +1539,7 @@
     const os=document.getElementById('overviewSingle'); if(os) os.style.display = allMode ? 'none' : '';
     const oa=document.getElementById('overviewAll'); if(oa) oa.style.display = allMode ? '' : 'none';
     const ctl=document.querySelector('.controls'); if(ctl) ctl.style.display = (allMode || cmpMode) ? 'none' : '';
-    const se=document.getElementById('segExportRow'); if(se) se.style.display = (allMode || cmpMode) ? 'none' : '';
+    const se=document.getElementById('segExportBtn'); if(se) se.style.display = (allMode || cmpMode) ? 'none' : '';
     if(allMode){
       document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
       const po=document.getElementById('p-overview'); if(po) po.classList.add('on');

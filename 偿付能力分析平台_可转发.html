@@ -282,15 +282,9 @@ let REG_INDUSTRY = {
 </nav>
 
 <div class="controls" id="controls">
-  <div class="ctl" id="segExportRow" style="display:none;gap:8px;align-items:center;font-size:13px;color:var(--sub);margin-bottom:4px">
-    <span>导出行业明细：</span>
-    <button class="btn" data-export-seg="group">保险集团</button>
-    <button class="btn" data-export-seg="property">财产险</button>
-    <button class="btn" data-export-seg="life">人身险</button>
-    <button class="btn" data-export-seg="reins">再保险</button>
-  </div>
   <div class="ctl"><span>时间范围：</span>
     <select id="rangeStart"></select><span>—</span><select id="rangeEnd"></select>
+    <button class="btn" id="segExportBtn" style="display:none;margin-left:12px">导出行业明细</button>
   </div>
   <div class="ctl" style="margin-left:auto;color:var(--brand);font-weight:600;max-width:520px;text-align:right" id="caliberNote"></div>
 </div>
@@ -641,8 +635,8 @@ window.CMP_CONFIG = {
         { name: '阳光财险', src: 'sun', block: '产险', company: '阳光财产' }
       ],
       lists: {
-        listedInclZhongan: ['平安产险', '人保财险', '太保财险', '太平财险', '众安财产', '大地财产', '阳光财产'],
-        listedExclZhongan: ['平安产险', '人保财险', '太保财险', '太平财险', '大地财产', '阳光财产']
+        listedInclZhongan: ['平安产险', '人保财险', '太保财险', '太平财险', '众安财产', '大地财产'],
+        listedExclZhongan: ['平安产险', '人保财险', '太保财险', '太平财险', '大地财产']
       }
     }
   }
@@ -1586,7 +1580,7 @@ window.CMP_CONFIG = {
       if(b.dataset.seg==='compare'){
         document.getElementById('tabs').style.display='none';
         const ctl=document.querySelector('.controls'); if(ctl) ctl.style.display='none';
-        const se=document.getElementById('segExportRow'); if(se) se.style.display='none';
+        const se=document.getElementById('segExportBtn'); if(se) se.style.display='none';
         document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
         document.getElementById('p-compare').classList.add('on');
         renderCompare();
@@ -1595,10 +1589,9 @@ window.CMP_CONFIG = {
       }
       loadSeg(b.dataset.seg); applySegMode(); refreshTimeBased();
     });
-    // 四个板块行业明细导出
-    document.querySelectorAll('#segExportRow button[data-export-seg]').forEach(b=>{
-      b.onclick=()=> exportSegDetail(b.dataset.exportSeg);
-    });
+    // 行业明细导出按钮（当前板块）
+    const seb = document.getElementById('segExportBtn');
+    if(seb) seb.onclick = ()=> exportSegDetail(S.seg);
     // 数据管理（已移除"数据"按钮及浮层）
     document.getElementById('rangeStart').onchange=e=>{S.range[0]=+e.target.value; if(S.range[0]>S.range[1])S.range[1]=S.range[0]; refreshTimeBased();};
     document.getElementById('rangeEnd').onchange=e=>{S.range[1]=+e.target.value; if(S.range[1]<S.range[0])S.range[0]=S.range[1]; refreshTimeBased();};
@@ -2192,7 +2185,7 @@ window.CMP_CONFIG = {
     const os=document.getElementById('overviewSingle'); if(os) os.style.display = allMode ? 'none' : '';
     const oa=document.getElementById('overviewAll'); if(oa) oa.style.display = allMode ? '' : 'none';
     const ctl=document.querySelector('.controls'); if(ctl) ctl.style.display = (allMode || cmpMode) ? 'none' : '';
-    const se=document.getElementById('segExportRow'); if(se) se.style.display = (allMode || cmpMode) ? 'none' : '';
+    const se=document.getElementById('segExportBtn'); if(se) se.style.display = (allMode || cmpMode) ? 'none' : '';
     if(allMode){
       document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
       const po=document.getElementById('p-overview'); if(po) po.classList.add('on');

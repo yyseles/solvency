@@ -190,15 +190,9 @@
 </nav>
 
 <div class="controls" id="controls">
-  <div class="ctl" id="segExportRow" style="display:none;gap:8px;align-items:center;font-size:13px;color:var(--sub);margin-bottom:4px">
-    <span>导出行业明细：</span>
-    <button class="btn" data-export-seg="group">保险集团</button>
-    <button class="btn" data-export-seg="property">财产险</button>
-    <button class="btn" data-export-seg="life">人身险</button>
-    <button class="btn" data-export-seg="reins">再保险</button>
-  </div>
   <div class="ctl"><span>时间范围：</span>
     <select id="rangeStart"></select><span>—</span><select id="rangeEnd"></select>
+    <button class="btn" id="segExportBtn" style="display:none;margin-left:12px">导出行业明细</button>
   </div>
   <div class="ctl" style="margin-left:auto;color:var(--brand);font-weight:600;max-width:520px;text-align:right" id="caliberNote"></div>
 </div>
