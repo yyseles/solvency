@@ -371,32 +371,34 @@
     </div>
   </section>
 
-  <!-- 上市公司及其他主要公司对比（按板块分开展示） -->
+  <!-- 上市公司及其他主要公司对比（按板块切换展示） -->
   <section class="panel" id="p-compare">
     <div class="cmp-toolbar">
+      <div class="seg" id="cmpSecTabs" style="margin-right:auto">
+        <button data-csec="group" class="on">一、保险集团</button>
+        <button data-csec="life">二、人身险</button>
+        <button data-csec="property">三、财产险</button>
+      </div>
       <button class="btn" id="cmpToggleCap">展开资本明细</button>
-      <button class="btn" id="cmpDownload" style="margin-left:auto">下载汇总(CSV)</button>
+      <button class="btn" id="cmpDownload">下载汇总(CSV)</button>
     </div>
     <div class="note" id="cmpNote" style="margin:10px 0 6px;color:var(--sub);font-size:12.5px;line-height:1.7"></div>
     <div id="cmpSections">
-      <div class="cmp-sec">
-        <div class="cmp-sec-h">一、保险集团（控股公司）</div>
+      <div class="cmp-sec" data-csec="group" style="">
         <div class="grid2" style="margin-bottom:6px">
           <div class="card" style="margin:0;padding:12px"><h4 style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">综合偿付能力充足率</h4><div class="cmp-chart" id="cmpChart_group_C" style="height:320px"></div></div>
           <div class="card" style="margin:0;padding:12px"><h4 style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">核心偿付能力充足率</h4><div class="cmp-chart" id="cmpChart_group_D" style="height:320px"></div></div>
         </div>
         <div class="cmp-detail" id="cmpDetail_group"></div>
       </div>
-      <div class="cmp-sec">
-        <div class="cmp-sec-h">二、人身险公司</div>
+      <div class="cmp-sec" data-csec="life" style="display:none">
         <div class="grid2" style="margin-bottom:6px">
           <div class="card" style="margin:0;padding:12px"><h4 style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">综合偿付能力充足率</h4><div class="cmp-chart" id="cmpChart_life_C" style="height:320px"></div></div>
           <div class="card" style="margin:0;padding:12px"><h4 style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">核心偿付能力充足率</h4><div class="cmp-chart" id="cmpChart_life_D" style="height:320px"></div></div>
         </div>
         <div class="cmp-detail" id="cmpDetail_life"></div>
       </div>
-      <div class="cmp-sec">
-        <div class="cmp-sec-h">三、财产险公司</div>
+      <div class="cmp-sec" data-csec="property" style="display:none">
         <div class="grid2" style="margin-bottom:6px">
           <div class="card" style="margin:0;padding:12px"><h4 style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">综合偿付能力充足率</h4><div class="cmp-chart" id="cmpChart_property_C" style="height:320px"></div></div>
           <div class="card" style="margin:0;padding:12px"><h4 style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">核心偿付能力充足率</h4><div class="cmp-chart" id="cmpChart_property_D" style="height:320px"></div></div>

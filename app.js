@@ -972,6 +972,14 @@
       panel.classList.toggle('cmp-show-cap', cmpCapVisible);
       ct.textContent = cmpCapVisible ? '隐藏资本明细' : '展开资本明细';
     };
+    // 板块子Tab切换
+    const cst=document.getElementById('cmpSecTabs'); if(cst) cst.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+      cst.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on');
+      document.querySelectorAll('#cmpSections .cmp-sec').forEach(s=> s.style.display='none');
+      const target=document.querySelector('#cmpSections .cmp-sec[data-csec="'+b.dataset.csec+'"]');
+      if(target){ target.style.display=''; setTimeout(()=>{ Object.values(cmpCharts).forEach(c=>c && c.resize()); }, 30); }
+    });
     document.getElementById('rankEvoSel').onchange=e=>{ S.rankEvo=e.target.value; renderRankEvo(); };
     document.getElementById('riskEntity').onchange=e=>{S.riskEntity=e.target.value; renderRisk();};
     document.getElementById('riskInd').onchange=e=>{S.riskInd=e.target.checked; renderRisk();};
@@ -1154,8 +1162,14 @@
 
     const allCompanies = [...S.companies];
     if(sec==='life') allCompanies.push(...D.bankCompanies.map(n=>({name:n,isBank:true})));
+    // 跳过已在entities中出现的公司（如阳光人寿/阳光财产/阳光集团，避免重复）
+    const entityCompanyNames = new Set(S.entities.filter(e=>e.company).map(e=>e.company));
+    const filteredCompanies = allCompanies.filter(item=>{
+      const c = item.name || item;
+      return !entityCompanyNames.has(c);
+    });
 
-    allCompanies.forEach(item=>{
+    filteredCompanies.forEach(item=>{
       const c = item.name || item;
       const isBank = item.isBank || false;
       const cls = (c.indexOf('阳光')>=0) ? 'sun' : (isBank ? 'bank' : '');
@@ -1225,7 +1239,10 @@
           });
         }
       });
-      S.companies.forEach(c=>{
+      // 跳过已在entities中出现的公司（避免阳光系重复）
+      const entCompanyNames = new Set(S.entities.filter(e=>e.company).map(e=>e.company));
+      const exportCompanies = S.companies.filter(c => !entCompanyNames.has(c));
+      exportCompanies.forEach(c=>{
         zhMetrics.forEach(metric => {
           const rVals = (D.raw[metric]&&D.raw[metric][S.block]&&D.raw[metric][S.block][c])||{};
           const label = metric===zhMetrics[0] ? c : c + '（核心）';
