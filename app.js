@@ -1045,7 +1045,7 @@
   function cmpHas(obj,k){ return obj && Object.prototype.hasOwnProperty.call(obj,k); }
 
   // 阳光系数统一取自平台偿付能力表（data.js / SOLVENCY_DATA），与平台其它公司口径一致
-  const CMP_BLOCK_MAP = {'集团':'group','人身险':'life','财产险':'property'};
+  const CMP_BLOCK_MAP = {'集团':'group','人身险':'life','寿险':'life','财产险':'property','产险':'property'};
   function cmpPeriodToDataKey(p){
     const yy = parseInt(p.slice(0,2),10), q = parseInt(p.slice(3),10);
     const yr = 2000 + yy;
