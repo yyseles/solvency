@@ -185,7 +185,6 @@
   <button data-seg="life">人身险</button>
   <button data-seg="reins">再保险</button>
   <button data-seg="compare" style="border-color:#9b8cff;color:#9b8cff;margin-left:6px">上市公司对比</button>
-  <button id="dataBtn" style="border-color:#ffd479;color:#ffd479;margin-left:6px">数据</button>
   <span class="spacer"></span>
   <span class="meta" id="segMeta"></span>
 </nav>
@@ -235,7 +234,6 @@
           <span class="ctl" style="color:var(--sub);margin-left:10px">指标：</span>
           <div class="seg" id="rankMetric"><button data-v="C" class="on">综合充足率</button><button data-v="D">核心充足率</button></div>
           <input class="search" id="rankSearch" placeholder="搜索公司…">
-          <button class="cmp-chip" id="expCsv" style="background:#eef3ff">导出 CSV</button>
         </div>
       </div>
       <div class="card" style="padding-bottom:12px">
@@ -380,7 +378,9 @@
         <button data-csec="property">三、财产险</button>
       </div>
       <button class="btn" id="cmpToggleCap">展开资本明细</button>
-      <button class="btn" id="cmpDownload">下载汇总(CSV)</button>
+      <span style="font-size:13px;color:var(--sub);margin-left:8px">导出基础数据：</span>
+      <select id="cmpExportPeriod" style="font-size:13px;padding:4px 6px;border:1px solid var(--line);border-radius:6px"></select>
+      <button class="btn" id="cmpExportData">导出</button>
     </div>
     <div class="note" id="cmpNote" style="margin:10px 0 6px;color:var(--sub);font-size:12.5px;line-height:1.7"></div>
     <div id="cmpSections">

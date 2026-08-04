@@ -933,6 +933,7 @@
       b.classList.add('on');
       if(b.dataset.seg==='compare'){
         document.getElementById('tabs').style.display='none';
+        const ctl=document.querySelector('.controls'); if(ctl) ctl.style.display='none';
         document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
         document.getElementById('p-compare').classList.add('on');
         renderCompare();
@@ -941,14 +942,7 @@
       }
       loadSeg(b.dataset.seg); applySegMode(); refreshTimeBased();
     });
-    // 数据管理
-    const db=document.getElementById('dataBtn'); if(db) db.onclick=openData;
-    const dc=document.getElementById('dataClose'); if(dc) dc.onclick=closeData;
-    const dm=document.getElementById('dataMask'); if(dm) dm.onclick=e=>{ if(e.target===dm) closeData(); };
-    const ed=document.getElementById('btnExportData'); if(ed) ed.onclick=exportDataJson;
-    const ew=document.getElementById('btnExportWeb'); if(ew) ew.onclick=exportStandaloneWeb;
-    const fi=document.getElementById('fileData'); if(fi) fi.onchange=e=>{ if(e.target.files[0]) importDataJson(e.target.files[0]); e.target.value=''; };
-    const di=document.getElementById('btnImportData'); if(di) di.onclick=()=>{ const f=document.getElementById('fileData'); if(f) f.click(); };
+    // 数据管理（已移除"数据"按钮及浮层）
     document.getElementById('rangeStart').onchange=e=>{S.range[0]=+e.target.value; if(S.range[0]>S.range[1])S.range[1]=S.range[0]; refreshTimeBased();};
     document.getElementById('rangeEnd').onchange=e=>{S.range[1]=+e.target.value; if(S.range[1]<S.range[0])S.range[0]=S.range[1]; refreshTimeBased();};
     document.getElementById('tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{
@@ -964,8 +958,8 @@
     });
     document.getElementById('rankPeriod').onchange=e=>{S.rankPeriod=e.target.value; renderRank();};
     document.getElementById('rankSearch').oninput=()=>renderRank();
-    document.getElementById('expCsv').onclick=exportRankCsv;
-    const cd=document.getElementById('cmpDownload'); if(cd) cd.onclick=exportCmpCsv;
+    // 导出基础数据（按板块+期次）
+    const ep=document.getElementById('cmpExportData'); if(ep) ep.onclick=exportCmpBaseData;
     const ct=document.getElementById('cmpToggleCap'); if(ct) ct.onclick=()=>{
       cmpCapVisible = !cmpCapVisible;
       const panel = document.getElementById('p-compare');
@@ -1012,21 +1006,7 @@
     ao.onclick=e=>{if(e.target===ao)ao.style.display='none';};
     window.addEventListener('resize',()=>Object.values(charts).forEach(c=>c.resize()));
   }
-  function exportRankCsv(){
-    const k=S.rankPeriod, field=S.rankMetric;
-    const rows=COMPS.map(c=>{const r=DATA[c][k];const st=statusOf(c,k);return {c,r,st};})
-      .sort((a,b)=>{const av=(a.r&&a.r[field]!=null)?a.r[field]:-1, bv=(b.r&&b.r[field]!=null)?b.r[field]:-1; return bv-av;});
-    let s='排名,公司,综合充足率,核心充足率,实际资本(万元),最低资本(万元),状态\n';
-    rows.forEach((x,i)=>{
-      const st = x.st==='nodata'?'未披露':(x.r.C<1.0||x.r.D<0.5)?'不达标':((x.r.C<1.2||x.r.D<0.6)?'关注':'达标');
-      s+=`${i+1},${x.c},${x.r&&x.r.C!=null?x.r.C:'未披露'},${x.r&&x.r.D!=null?x.r.D:'未披露'},${x.r&&x.r.I!=null?x.r.I:''},${x.r&&x.r.N!=null?x.r.N:''},${st}\n`;
-    });
-    const blob=new Blob([s],{type:'text/csv;charset=utf-8'});
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-    a.download=`偿付能力排名_${KEY2PERIOD[k].label}.csv`; a.click();
-  }
 
-  // ---------- 上市公司及其他主要公司对比 ----------
   // ---------- 上市公司及其他主要公司对比 ----------
   function fmtCmp(v, isRatio){
     if(isRatio){
@@ -1215,6 +1195,13 @@
       + ' 集团加权平均(计算口径)=所有集团公司加权<b>含阳光集团</b>（按半年报披露，仅Q2/Q4有数据，展示时隐藏Q1/Q3）。'
       + ' 监管披露口径为监管直接披露的行业平均（仅充足率，无资本明细）。银保系=9家银行系寿险公司加权。'
       + ' 金额单位：亿元（保留2位小数）。阳光系数值取自对应板块偿付能力表。';
+    // 填充导出基础数据的期次下拉（取全部期次，默认最新）
+    const allPeriods = cmpPeriods();
+    const expSel = document.getElementById('cmpExportPeriod');
+    if(expSel){
+      expSel.innerHTML = allPeriods.map(p=>'<option value="'+p+'">'+p+'</option>').join('');
+      expSel.value = allPeriods[allPeriods.length-1] || '';
+    }
     CMP_SECS.forEach(sec=>{
       // 初始化两期对比的默认期并填充下拉
       if(!cmpCmpPeriods[sec]) cmpCmpPeriods[sec] = cmpDefaultPeriods(sec);
@@ -1288,15 +1275,31 @@
         dataA.push(va==null?null:(ent.src==='reg'?va:pctVal(va)));
         dataB.push(vb==null?null:(ent.src==='reg'?vb:pctVal(vb)));
       });
+      // 标签格式器：值(2位小数) + 变动(bp)
+      function makeLabel(dataOther){
+        return {
+          show:true, position:'top', fontSize:9, lineHeight:13,
+          rich:{ v:{fontSize:10,fontWeight:600,color:'#333'}, d:{fontSize:8,color:'#666',padding:[0,0,1,0]} },
+          formatter:function(p){
+            if(p.value==null) return '';
+            const val = p.value.toFixed(2);
+            const ov = dataOther[p.dataIndex];
+            if(ov==null) return '{v|'+val+'}';
+            const bp = ((p.value - ov) * 100).toFixed(1);
+            const sign = bp >= 0 ? '+' : '';
+            return '{v|'+val+'}\n{d|'+sign+bp+'bp}';
+          }
+        };
+      }
       const option = {
         tooltip:{ trigger:'axis', valueFormatter:v=> v==null?'—':(v.toFixed(2)+'%') },
         legend:{ top:2, textStyle:{ fontSize:10 }, data:[pA,pB] },
-        grid:{ left:58, right:22, top:40, bottom:30 },
+        grid:{ left:58, right:22, top:52, bottom:30 },
         xAxis:{ type:'category', data:names, axisLabel:{ fontSize:10, interval:0, rotate: names.length>4?20:0 } },
         yAxis:{ type:'value', name:'充足率(%)', min:0, axisLabel:{ formatter:v=> (Math.round(v*10)/10) } },
         series:[
-          { name:pA, type:'bar', data:dataA, itemStyle:{ color:'#2f6fdb', borderRadius:[3,3,0,0] }, label:{ show:true, position:'top', fontSize:9, formatter:p=>p.value!=null?p.value.toFixed(1):'' } },
-          { name:pB, type:'bar', data:dataB, itemStyle:{ color:'#e67e22', borderRadius:[3,3,0,0] }, label:{ show:true, position:'top', fontSize:9, formatter:p=>p.value!=null?p.value.toFixed(1):'' } }
+          { name:pA, type:'bar', data:dataA, itemStyle:{ color:'#2f6fdb', borderRadius:[3,3,0,0] },          label:makeLabel(dataB) },
+          { name:pB, type:'bar', data:dataB, itemStyle:{ color:'#e67e22', borderRadius:[3,3,0,0] }, label:makeLabel(dataA) }
         ]
       };
       const chartId = 'cmpCmp2_'+sec+'_'+(mi===0?'C':'D');
@@ -1390,69 +1393,72 @@
     document.getElementById('cmpDetail_'+sec).innerHTML = h;
   }
 
-      function exportCmpCsv(){
+  // 导出基础数据：当前板块 + 指定期次的所有主体 I/J/K/L/M/N/C/D 原始值
+  function exportCmpBaseData(){
     const BL = window.CMP_CONFIG.blocks;
-    const periods = cmpPeriods();
-    const CAP_METRICS = ['实际资本','核心资本','附属资本','最低资本'];
-    const zhMetrics = ['综合偿付能力充足率','核心偿付能力充足率'];
-    let s = '上市公司对比\n板块,主体,' + periods.join(',') + '\n';
+    // 当前选中的子板块
+    const activeBtn = document.querySelector('#cmpSecTabs button.on');
+    const sec = activeBtn ? activeBtn.dataset.csec : 'group';
+    const S = BL[sec];
+    // 选中的期次
+    const sel = document.getElementById('cmpExportPeriod');
+    const period = sel ? sel.value : null;
+    if(!period){ alert('请先选择要导出的报告期'); return; }
+    // 实际用 dataBlock
+    const dk = S.dataBlock;
 
-    function capVal(ent, capMetric, p){
-      const arr = capArr(ent, capMetric);
-      const i = cmpPeriods().indexOf(p);
-      const v = (i>=0) ? arr[i] : null;
-      return v==null?'':v;
-    }
-    function rawCapVal(block, company, capMetric, p){
-      const o = cmpCompanyAmtMap(company, CMP_BLOCK_MAP[block], capMetric);
-      return o[p]==null?'':o[p];
-    }
+    const CAP_FIELDS = [
+      {f:'I',n:'实际资本I(万元)'},{f:'J',n:'核心一级J(万元)'},{f:'K',n:'核心二级K(万元)'},
+      {f:'L',n:'附属一级L(万元)'},{f:'M',n:'附属二级M(万元)'},{f:'N',n:'最低资本N(万元)'}
+    ];
+    let s = '\ufeff' + S.title + ' · 基础数据 · ' + period + '\n';
+    s += '主体,综合充足率C,核心充足率D,' + CAP_FIELDS.map(c=>c.n).join(',') + '\n';
 
-    CMP_SECS.forEach(sec=>{
-      const S = BL[sec];
-      s += S.title + ',,' + '\n';
-      S.entities.forEach(ent=>{
-        zhMetrics.forEach(metric => {
-          const arr = entityArr(ent, metric);
-          const label = metric===zhMetrics[0] ? ent.name : ent.name + '（核心）';
-          s += ',' + label + ',' + arr.map(v=> v==null?'':v).join(',') + '\n';
-        });
-        if(ent.src!=='reg'){
-          CAP_METRICS.forEach(cm=>{
-            s += ',└ '+cm+'(亿元),' + periods.map(p=> capVal(ent, cm, p)).join(',') + '\n';
-          });
-        }
-      });
-      // 跳过已在entities中出现的公司（避免阳光系重复）
-      const entCompanyNames = new Set(S.entities.filter(e=>e.company).map(e=>e.company));
-      const exportCompanies = S.companies.filter(c => !entCompanyNames.has(c));
-      exportCompanies.forEach(c=>{
-        zhMetrics.forEach(metric => {
-          const rVals = cmpCompanyRatioMap(c, S.dataBlock, metric);
-          const label = metric===zhMetrics[0] ? c : c + '（核心）';
-          s += ',' + label + ',' + periods.map(p=> rVals[p]==null?'':rVals[p]).join(',') + '\n';
-        });
-        CAP_METRICS.forEach(cm=>{
-          s += ',└ '+cm+'(亿元),' + periods.map(p=> rawCapVal(S.dataBlock,c,cm,p)).join(',') + '\n';
-        });
-      });
-      if(sec==='life'){
-        CMP_CONFIG.blocks.life.lists.banks.forEach(c=>{
-          zhMetrics.forEach(metric => {
-            const rVals = cmpBankRatioMap(c, metric);
-            const label = metric===zhMetrics[0] ? ('银保系·'+c) : ('银保系·'+c+'（核心）');
-            s += ',' + label + ',' + periods.map(p=> rVals[p]==null?'':rVals[p]).join(',') + '\n';
-          });
-          CAP_METRICS.forEach(cm=>{
-            const cVals = cmpBankAmtMap(c, cm);
-            s += ',└ '+cm+'(亿元),' + periods.map(p=> cVals[p]==null?'':cVals[p]).join(',') + '\n';
-          });
+    // 实体行（加权/监管/阳光）
+    S.entities.forEach(ent=>{
+      let row = ent.name + ',';
+      if(ent.src==='reg'){
+        const o = (typeof REG_INDUSTRY!=='undefined' && REG_INDUSTRY.data[ent.seg]) ? REG_INDUSTRY.data[ent.seg] : {};
+        const dk2 = (period.endsWith('Q4')?'20'+period.slice(0,2):'20'+period);
+        const r = o[dk2];
+        row += (r && r.C!=null)?r.C:''; row += ',';
+        row += (r && r.D!=null)?r.D:''; row += ',';
+        CAP_FIELDS.forEach(()=>{ row += ','; }); // 监管披露无资本明细
+      } else {
+        const r = cmpDataRec(dk, ent.company || '_', period);
+        row += (r && r.C!=null)?r.C:''; row += ',';
+        row += (r && r.D!=null)?r.D:''; row += ',';
+        CAP_FIELDS.forEach(cf => { row += (r && r[cf.f]!=null)?r[cf.f]:''; row += ','; });
+      }
+      s += row.slice(0,-1) + '\n'; // 去掉末尾多余逗号
+      // 资本子行
+      if(ent.src!=='reg'){
+        CAP_FIELDS.forEach(cf=>{
+          s += '└ '+cf.n+',,,,,,,,,' + '\n'; // 占位，实际值已在主行
         });
       }
     });
-    const blob = new Blob(['\ufeff'+s], {type:'text/csv;charset=utf-8'});
+
+    // 公司明细行
+    const entityCompanyNames = new Set(S.entities.filter(e=>e.company).map(e=>e.company));
+    const filteredCompanies = S.companies.filter(c => !entityCompanyNames.has(c));
+    if(sec==='life') filteredCompanies.push(...CMP_CONFIG.blocks.life.lists.banks);
+
+    filteredCompanies.forEach(item => {
+      const c = item.name || item;
+      const isBank = item.isBank || false;
+      const bKey = isBank ? 'life' : dk;
+      const r = cmpDataRec(bKey, c, period);
+      let row = c + ',';
+      row += (r && r.C!=null)?r.C:''; row += ',';
+      row += (r && r.D!=null)?r.D:''; row += ',';
+      CAP_FIELDS.forEach(cf => { row += (r && r[cf.f]!=null)?r[cf.f]:''; row += ','; });
+      s += row.slice(0,-1) + '\n';
+    });
+
+    const blob = new Blob([s], {type:'text/csv;charset=utf-8'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = '上市公司对比.csv'; a.click();
+    a.download = S.title.replace(/[、（）]/g,'_') + '_' + period + '_基础数据.csv'; a.click();
   }
   // ---------- 分离表头列宽同步 ----------
   function syncSplitHdr(){
@@ -1475,9 +1481,11 @@
   // ---------- 启动 ----------
   function applySegMode(){
     const allMode = S.seg==='all';
-    const tabs=document.getElementById('tabs'); if(tabs) tabs.style.display = allMode ? 'none' : '';
+    const cmpMode = S.seg==='compare';
+    const tabs=document.getElementById('tabs'); if(tabs) tabs.style.display = (allMode || cmpMode) ? 'none' : '';
     const os=document.getElementById('overviewSingle'); if(os) os.style.display = allMode ? 'none' : '';
     const oa=document.getElementById('overviewAll'); if(oa) oa.style.display = allMode ? '' : 'none';
+    const ctl=document.querySelector('.controls'); if(ctl) ctl.style.display = (allMode || cmpMode) ? 'none' : '';
     if(allMode){
       document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
       const po=document.getElementById('p-overview'); if(po) po.classList.add('on');
