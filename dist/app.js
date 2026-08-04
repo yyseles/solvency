@@ -1079,34 +1079,37 @@
     const displayPeriods = (sec==='group') ? periods.filter(p=> p.endsWith('Q2')||p.endsWith('Q4')) : periods;
     const colors = ['#2f6fdb','#16a085','#8e44ad','#c0392b','#e67e22','#f39c12','#7f8c8d','#3498db'];
     const zhMetrics = ['综合偿付能力充足率','核心偿付能力充足率'];
-    const series = [];
+
     zhMetrics.forEach((metric, mi)=>{
+      const series = [];
       S.entities.forEach((ent, ei)=>{
         const rawArr = entityArr(ent, metric);
         const data = (sec==='group')
           ? rawArr.filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4')).map(v=> (ent.src==='reg')?v:pctVal(v))
           : rawArr.map(v=> (ent.src==='reg')?v:pctVal(v));
         series.push({
-          name: ent.name + (mi?'（核心）':'（综合）'),
+          name: ent.name,
           type:'bar',
           data: data,
-          itemStyle:{ color: colors[(ei*2+mi) % colors.length], borderRadius:[3,3,0,0] },
-          emphasis:{ focus:'series' }
+          itemStyle:{ color: colors[ei % colors.length], borderRadius:[3,3,0,0] },
+          emphasis:{ focus:'series' },
+          label:{ show:true, position:'top', fontSize:10, color:'#666', formatter:p=>p.value!=null?(p.value.toFixed(2)+'%'):'' }
         });
       });
+      const chartId = 'cmpChart_'+sec+'_'+(mi===0?'C':'D');
+      const option = {
+        tooltip:{ trigger:'axis', valueFormatter:v=> v==null?'—':(v.toFixed(2)+'%') },
+        legend:{ type:'scroll', top:2, textStyle:{ fontSize:10 }, itemWidth:14, itemHeight:10 },
+        grid:{ left:58, right:22, top:40, bottom:64 },
+        xAxis:{ type:'category', data:displayPeriods, axisLabel:{ fontSize:11, rotate: displayPeriods.length>8?30:0 } },
+        yAxis:{ type:'value', name:'充足率(%)', scale:true, axisLabel:{ formatter:v=> (Math.round(v*10)/10) } },
+        dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:22}],
+        series
+      };
+      if(!cmpCharts[chartId]) cmpCharts[chartId] = echarts.init(document.getElementById(chartId));
+      cmpCharts[chartId].setOption(option, true);
+      cmpCharts[chartId].resize();
     });
-    const option = {
-      tooltip:{ trigger:'axis', valueFormatter:v=> v==null?'—':(v.toFixed(2)+'%') },
-      legend:{ type:'scroll', top:2, textStyle:{ fontSize:10 }, itemWidth:14, itemHeight:10 },
-      grid:{ left:58, right:22, top:46, bottom:64 },
-      xAxis:{ type:'category', data:displayPeriods, axisLabel:{ fontSize:11, rotate: displayPeriods.length>8?30:0 } },
-      yAxis:{ type:'value', name:'充足率(%)', scale:true, axisLabel:{ formatter:v=> (Math.round(v*10)/10) } },
-      dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:22}],
-      series
-    };
-    if(!cmpCharts[sec]) cmpCharts[sec] = echarts.init(document.getElementById('cmpChart_'+sec));
-    cmpCharts[sec].setOption(option, true);
-    cmpCharts[sec].resize();
   }
 
   function renderSecTable(sec){
@@ -1116,20 +1119,20 @@
     const displayPeriods = (sec==='group') ? periods.filter(p=> p.endsWith('Q2')||p.endsWith('Q4')) : periods;
     const CAP_METRICS = ['实际资本','核心资本','附属资本','最低资本'];
     const zhMetrics = ['综合偿付能力充足率','核心偿付能力充足率'];
+    const metricTags = ['【综合】','【核心】'];
 
     let h = '<div class="cmp-table"><table><thead><tr><th>主体</th>';
     displayPeriods.forEach(p=> h += '<th>'+p+'</th>');
     h += '</tr></thead><tbody>';
 
     S.entities.forEach(ent=>{
-      zhMetrics.forEach(metric => {
+      zhMetrics.forEach((metric, mi) => {
         const arr = entityArr(ent, metric);
         const isRegPct = (ent.src==='reg');
         const dispArr = (sec==='group')
           ? arr.filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4'))
           : arr;
-        const label = metric==='综合偿付能力充足率' ? ent.name : '';
-        h += '<tr class="agg"><td>'+(label || '<span style="color:var(--sub);padding-left:12px">'+ent.name+'</span>')+'</td>';
+        h += '<tr class="agg"><td>'+ent.name+' <span style="color:var(--brand);font-weight:700;font-size:11.5px">'+metricTags[mi]+'</span></td>';
         dispArr.forEach(v=> {
           if(v==null){ h+='<td></td>'; return; }
           h += '<td>'+(isRegPct ? (parseFloat(v).toFixed(2)+'%') : fmtCmp(v,true))+'</td>';
@@ -1156,15 +1159,14 @@
       const c = item.name || item;
       const isBank = item.isBank || false;
       const cls = (c.indexOf('阳光')>=0) ? 'sun' : (isBank ? 'bank' : '');
-      zhMetrics.forEach(metric => {
+      zhMetrics.forEach((metric, mi) => {
         const rVals = isBank
           ? ((D.bankRaw[metric]&&D.bankRaw[metric][c])||{})
           : ((D.raw[metric]&&D.raw[metric][S.block]&&D.raw[metric][S.block][c])||{});
         const dispVals = (sec==='group')
           ? periods.map(p=> rVals[p]).filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4'))
           : periods.map(p=> rVals[p]);
-        const label = metric==='综合偿付能力充足率' ? c : '';
-        h += '<tr class="'+cls+'"><td>'+(label || '<span style="color:var(--sub);padding-left:12px">'+c+'</span>')+'</td>';
+        h += '<tr class="'+cls+'"><td>'+c+' <span style="color:var(--brand);font-weight:700;font-size:11.5px">'+metricTags[mi]+'</span></td>';
         dispVals.forEach(v=> h += '<td>'+(v==null?'':fmtCmp(v,true))+'</td>');
         h += '</tr>';
       });
