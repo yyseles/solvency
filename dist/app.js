@@ -930,7 +930,15 @@
   function bind(){
     document.getElementById('segtabs').querySelectorAll('button[data-seg]').forEach(b=>b.onclick=()=>{
       document.getElementById('segtabs').querySelectorAll('button').forEach(x=>x.classList.remove('on'));
-      b.classList.add('on'); loadSeg(b.dataset.seg); applySegMode(); refreshTimeBased();
+      b.classList.add('on');
+      if(b.dataset.seg==='compare'){
+        document.getElementById('tabs').style.display='none';
+        document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+        document.getElementById('p-compare').classList.add('on');
+        renderCompare();
+        return;
+      }
+      loadSeg(b.dataset.seg); applySegMode(); refreshTimeBased();
     });
     // 数据管理
     const db=document.getElementById('dataBtn'); if(db) db.onclick=openData;
@@ -956,6 +964,8 @@
     document.getElementById('rankPeriod').onchange=e=>{S.rankPeriod=e.target.value; renderRank();};
     document.getElementById('rankSearch').oninput=()=>renderRank();
     document.getElementById('expCsv').onclick=exportRankCsv;
+    const cm=document.getElementById('cmpMetric'); if(cm){ cm.onchange=renderCompare; }
+    const cd=document.getElementById('cmpDownload'); if(cd) cd.onclick=exportCmpCsv;
     document.getElementById('rankEvoSel').onchange=e=>{ S.rankEvo=e.target.value; renderRankEvo(); };
     document.getElementById('riskEntity').onchange=e=>{S.riskEntity=e.target.value; renderRisk();};
     document.getElementById('riskInd').onchange=e=>{S.riskInd=e.target.checked; renderRisk();};
@@ -995,6 +1005,109 @@
     a.download=`偿付能力排名_${KEY2PERIOD[k].label}.csv`; a.click();
   }
 
+  // ---------- 上市公司及其他主要公司对比 ----------
+  function fmtCmp(v, isRatio){
+    if(isRatio) return (v==null?'': (typeof v==='number'? v.toFixed(4): v));
+    const n = (typeof v==='number')? v : parseFloat(v);
+    if(isNaN(n)) return '';
+    if(Math.abs(n) >= 1000) return n.toLocaleString('zh-CN',{maximumFractionDigits:2});
+    return n.toFixed(2);
+  }
+  function renderCompare(){
+    const D = window.COMPARE_DATA; if(!D) return;
+    const metric = document.getElementById('cmpMetric').value;
+    const isRatio = Object.prototype.hasOwnProperty.call(D.ratioMetrics, metric);
+    const periods = D.periods;
+    const aggLabel = isRatio ? '上市公司平均' : '上市公司合计';
+    const note = document.getElementById('cmpNote');
+    let txt = '口径：' + (isRatio
+        ? '综合 = Σ(实际资本)/Σ(最低资本)，核心 = Σ(核心资本)/Σ(最低资本)；'
+        : '金额类指标为各公司求和（单位：亿元）；')
+      + '「上市公司平均/合计」<b>不含阳光集团 / 阳光人寿 / 阳光财产</b>；产险分「含众安 / 不含众安」两口径并列。';
+    if(metric==='综合偿付能力充足率'){
+      txt += ' 银行系公司合计 = Σ(实际资本)/Σ(最低资本)，权重取自平台数据（9 家银行系寿险公司）。';
+    }
+    note.innerHTML = txt;
+
+    let h = '<div class="cmp-table"><table><thead><tr><th>板块</th><th>主体</th>';
+    periods.forEach(p=> h += '<th>'+p+'</th>');
+    h += '</tr></thead><tbody>';
+
+    ['集团','寿险','产险'].forEach(block=>{
+      const comps = Object.keys(D.raw[metric][block] || {});
+      if(!comps.length) return;
+      const blkName = block==='集团' ? '保险集团控股公司' : (block==='寿险' ? '人身险公司' : '财产险公司');
+      h += '<tr class="blk"><td colspan="2">'+block+'（'+blkName+'）</td>';
+      for(let i=0;i<periods.length;i++) h += '<td></td>';
+      h += '</tr>';
+      comps.forEach(c=>{
+        const vals = D.raw[metric][block][c] || {};
+        h += '<tr><td></td><td>'+c+'</td>';
+        periods.forEach(p=> h += '<td>'+(vals[p]==null?'':fmtCmp(vals[p],isRatio))+'</td>');
+        h += '</tr>';
+      });
+      const aggs = D.agg[metric][block] || {};
+      Object.keys(aggs).forEach(label=>{
+        const vals = aggs[label];
+        const disp = label.replace('上市公司平均', aggLabel).replace('上市公司合计', aggLabel);
+        h += '<tr class="agg"><td></td><td>'+disp+'</td>';
+        periods.forEach(p=> h += '<td>'+(vals[p]==null?'':fmtCmp(vals[p],isRatio))+'</td>');
+        h += '</tr>';
+      });
+    });
+
+    if(metric==='综合偿付能力充足率'){
+      h += '<tr class="bank blk"><td colspan="2">银行系主要公司（9 家）</td>';
+      for(let i=0;i<periods.length;i++) h += '<td></td>';
+      h += '</tr>';
+      D.bankCompanies.forEach(c=>{
+        const vals = D.bankRaw[c] || {};
+        h += '<tr class="bank"><td></td><td>'+c+'</td>';
+        periods.forEach(p=> h += '<td>'+(vals[p]==null?'':fmtCmp(vals[p],true))+'</td>');
+        h += '</tr>';
+      });
+      h += '<tr class="agg bank"><td></td><td>银行系公司合计（加权）</td>';
+      periods.forEach(p=> h += '<td>'+(D.bankAgg[p]==null?'':fmtCmp(D.bankAgg[p],true))+'</td>');
+      h += '</tr>';
+    }
+
+    h += '</tbody></table></div>';
+    document.getElementById('cmpTableWrap').innerHTML = h;
+  }
+  function exportCmpCsv(){
+    const D = window.COMPARE_DATA; if(!D) return;
+    const metric = document.getElementById('cmpMetric').value;
+    const isRatio = Object.prototype.hasOwnProperty.call(D.ratioMetrics, metric);
+    const periods = D.periods;
+    let s = metric + '\n板块,主体,' + periods.join(',') + '\n';
+    ['集团','寿险','产险'].forEach(block=>{
+      const comps = Object.keys(D.raw[metric][block] || {});
+      if(!comps.length) return;
+      s += block + ',,' + '\n';
+      comps.forEach(c=>{
+        const vals = D.raw[metric][block][c] || {};
+        s += ',' + c + ',' + periods.map(p=> vals[p]==null?'':vals[p]).join(',') + '\n';
+      });
+      const aggs = D.agg[metric][block] || {};
+      Object.keys(aggs).forEach(label=>{
+        const vals = aggs[label];
+        const disp = label.replace('上市公司平均','上市公司'+(isRatio?'平均':'合计')).replace('上市公司合计','上市公司'+(isRatio?'平均':'合计'));
+        s += ',' + disp + ',' + periods.map(p=> vals[p]==null?'':vals[p]).join(',') + '\n';
+      });
+    });
+    if(metric==='综合偿付能力充足率'){
+      s += '银行系主要公司,,' + '\n';
+      D.bankCompanies.forEach(c=>{
+        const vals = D.bankRaw[c] || {};
+        s += ',' + c + ',' + periods.map(p=> vals[p]==null?'':vals[p]).join(',') + '\n';
+      });
+      s += ',银行系公司合计（加权）,' + periods.map(p=> D.bankAgg[p]==null?'':D.bankAgg[p]).join(',') + '\n';
+    }
+    const blob = new Blob(['﻿'+s], {type:'text/csv;charset=utf-8'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = '上市公司对比_' + metric + '.csv'; a.click();
+  }
+
   // ---------- 分离表头列宽同步 ----------
   function syncSplitHdr(){
     document.querySelectorAll('.split-table').forEach(function(container){
@@ -1025,6 +1138,11 @@
     }
   }
   function start(){
+    const cm=document.getElementById('cmpMetric');
+    if(cm && window.COMPARE_DATA){
+      cm.innerHTML = window.COMPARE_DATA.metrics.map(m=>'<option value="'+m+'">'+m+'</option>').join('');
+      cm.value = '综合偿付能力充足率';
+    }
     loadSeg(S.seg);
     document.getElementById('segtabs').querySelectorAll('button').forEach(b=>{
       b.classList.toggle('on', b.dataset.seg===S.seg);

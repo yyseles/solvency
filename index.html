@@ -93,6 +93,20 @@
   .note code{background:#eef1f6;padding:1px 6px;border-radius:4px;font-family:Consolas,Menlo,monospace}
   .scroll{max-height:520px;overflow-y:auto;overflow-x:hidden;border:1px solid var(--line);border-radius:10px}
   .legend-inline{font-size:12px;color:var(--sub);margin-bottom:8px}
+  .cmp-toolbar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;box-shadow:var(--shadow);margin-bottom:4px}
+  .cmp-table{border:1px solid var(--line);border-radius:10px;overflow-x:auto;background:var(--card);box-shadow:var(--shadow)}
+  .cmp-table table{border-collapse:separate;border-spacing:0;min-width:1000px}
+  .cmp-table th,.cmp-table td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-size:13px}
+  .cmp-table th:first-child,.cmp-table td:first-child{text-align:left;position:sticky;left:0;background:var(--card);z-index:2}
+  .cmp-table thead th{background:#f0f4fa;color:var(--sub);position:sticky;top:0;font-weight:600}
+  .cmp-table .blk{background:#eef3fb;color:var(--brand);font-weight:700;text-align:left}
+  .cmp-table .blk td:first-child{background:#eef3fb}
+  .cmp-table .agg{font-weight:700;background:#fff7e6}
+  .cmp-table .agg td:first-child{color:var(--warn);background:#fff7e6}
+  .cmp-table tr:hover td{background:#f7faff}
+  .cmp-table .sub{color:var(--sub)}
+  .cmp-table .bank{background:#f3f0fb}
+  .cmp-table .bank td:first-child{background:#f3f0fb}
   .footer{color:var(--sub);font-size:12px;text-align:center;padding:24px}
   .segbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
   .segbar .chip{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 16px;box-shadow:var(--shadow);min-width:150px}
@@ -162,6 +176,7 @@
   <button data-seg="property">财产险</button>
   <button data-seg="life">人身险</button>
   <button data-seg="reins">再保险</button>
+  <button data-seg="compare" style="border-color:#9b8cff;color:#9b8cff;margin-left:6px">上市公司对比</button>
   <button id="dataBtn" style="border-color:#ffd479;color:#ffd479;margin-left:6px">数据</button>
   <span class="spacer"></span>
   <span class="meta" id="segMeta"></span>
@@ -348,6 +363,17 @@
     </div>
   </section>
 
+  <!-- 上市公司及其他主要公司对比 -->
+  <section class="panel" id="p-compare">
+    <div class="cmp-toolbar">
+      <span class="ctl" style="color:var(--sub)">指标：</span>
+      <select id="cmpMetric" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:13px"></select>
+      <button class="btn" id="cmpDownload" style="margin-left:auto">下载汇总(CSV)</button>
+    </div>
+    <div class="note" id="cmpNote" style="margin:10px 0 6px;color:var(--sub);font-size:12.5px;line-height:1.7"></div>
+    <div id="cmpTableWrap" style="overflow-x:auto"></div>
+  </section>
+
   <!-- 数据说明（全局浮层，独立于板块） -->
   <div id="aboutOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:rgba(0,0,0,.35);overflow:auto;padding:40px 20px">
     <div style="max-width:960px;margin:auto;background:var(--card);border-radius:14px;padding:28px 32px;box-shadow:0 8px 40px rgba(0,0,0,.2)">
@@ -407,6 +433,7 @@
 
 <div class="footer">保险行业偿付能力分析平台 · 纯静态前端 · 数据内联，可离线使用</div>
 
-<script src="app.js?v=20260803"></script>
+<script src="compare_data.js"></script>
+<script src="app.js?v=20260804"></script>
 </body>
 </html>
