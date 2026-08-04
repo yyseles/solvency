@@ -111,7 +111,9 @@
   .cmp-table .sun td:first-child{background:#fdecea}
   .cmp-table .agg.sun{background:#fbe2de}
   .cmp-table .agg.sun td:first-child{color:#c0392b;background:#fbe2de}
-  #cmpChart{display:block}
+  .cmp-sec{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:14px 16px;margin-bottom:16px}
+  .cmp-sec-h{font-size:15px;font-weight:700;color:var(--brand);margin:2px 0 8px;padding-left:10px;border-left:4px solid var(--brand)}
+  .cmp-chart{width:100%;height:360px;margin-bottom:6px}
   .footer{color:var(--sub);font-size:12px;text-align:center;padding:24px}
   .segbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
   .segbar .chip{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 16px;box-shadow:var(--shadow);min-width:150px}
@@ -368,17 +370,31 @@
     </div>
   </section>
 
-  <!-- 上市公司及其他主要公司对比 -->
+  <!-- 上市公司及其他主要公司对比（按板块分开展示） -->
   <section class="panel" id="p-compare">
     <div class="cmp-toolbar">
       <span class="ctl" style="color:var(--sub)">指标：</span>
       <select id="cmpMetric" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:13px"></select>
-      <button class="btn" id="cmpToggleTable">显示明细表</button>
       <button class="btn" id="cmpDownload" style="margin-left:auto">下载汇总(CSV)</button>
     </div>
     <div class="note" id="cmpNote" style="margin:10px 0 6px;color:var(--sub);font-size:12.5px;line-height:1.7"></div>
-    <div id="cmpChart" style="width:100%;height:480px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px 6px 0"></div>
-    <div id="cmpTableWrap" style="overflow-x:auto;display:none;margin-top:10px"></div>
+    <div id="cmpSections">
+      <div class="cmp-sec">
+        <div class="cmp-sec-h">保险集团</div>
+        <div class="cmp-chart" id="cmpChart_group"></div>
+        <div class="cmp-detail" id="cmpDetail_group"></div>
+      </div>
+      <div class="cmp-sec">
+        <div class="cmp-sec-h">人身险</div>
+        <div class="cmp-chart" id="cmpChart_life"></div>
+        <div class="cmp-detail" id="cmpDetail_life"></div>
+      </div>
+      <div class="cmp-sec">
+        <div class="cmp-sec-h">财产险</div>
+        <div class="cmp-chart" id="cmpChart_property"></div>
+        <div class="cmp-detail" id="cmpDetail_property"></div>
+      </div>
+    </div>
   </section>
 
   <!-- 数据说明（全局浮层，独立于板块） -->
