@@ -1042,26 +1042,19 @@
   function renderCompare(){
     const D = window.COMPARE_DATA; if(!D) return;
     const metric = document.getElementById('cmpMetric').value;
-    const isRatio = cmpHas(D.ratioMetrics, metric);
+    // 指标只有综合/核心(比率)，始终画图+展示明细
     const note = document.getElementById('cmpNote');
-    note.innerHTML = '口径：' + (isRatio
-        ? '综合 = Σ(实际资本)/Σ(最低资本)，核心 = Σ(核心资本)/Σ(最低资本)；'
-        : '金额类指标为各公司求和（单位：亿元，集团为全部集团公司合计）；')
-      + '「上市平均/合计」<b>不含阳光系</b>；产险分「含众安 / 不含众安」两口径。'
-      + ' 集团加权平均(计算口径) = 所有集团公司加权<b>含阳光集团</b>（保险集团按半年报披露，仅 Q2/Q4 有数据）。'
-      + ' 监管披露口径为监管直接披露的行业平均（人身险/财产险按板块披露）。银保系 = 9 家银行系寿险公司加权（核心资本 = 核心一级 + 核心二级）。'
-      + ' 充足率画图，实际/最低/附属资本等仅列表、不画图。';
+    note.innerHTML = '口径：' + (metric==='综合偿付能力充足率'
+        ? '综合充足率 = Σ(实际资本)/Σ(最低资本)；'
+        : '核心充足率 = Σ(核心资本)/Σ(最低资本)（核心资本=核心一级+核心二级）；')
+      + '「上市平均」<b>不含阳光系</b>；产险分「含众安 / 不含众安」两口径。'
+      + ' 集团加权平均(计算口径)=所有集团公司加权<b>含阳光集团</b>（按半年报披露，仅Q2/Q4有数据）。'
+      + ' 监管披露口径为监管直接披露的行业平均。银保系=9家银行系寿险公司加权。'
+      + ' 金额单位：亿元（保留2位小数）。';
 
     CMP_SECS.forEach(sec=>{
-      const chartDiv = document.getElementById('cmpChart_'+sec);
-      if(isRatio){
-        chartDiv.style.display = '';
-        renderSecChart(sec, metric, isRatio);
-      } else {
-        chartDiv.style.display = 'none';
-        if(cmpCharts[sec]){ cmpCharts[sec].clear(); }
-      }
-      renderSecTable(sec, metric, isRatio);
+      renderSecChart(sec, metric, true);
+      renderSecTable(sec, metric, true);
     });
   }
   function renderSecChart(sec, metric, isRatio){
@@ -1098,65 +1091,116 @@
     const D = window.COMPARE_DATA;
     const S = D.sections[sec];
     const periods = D.periods;
+    const CAP_METRICS = ['实际资本','核心资本','附属资本','最低资本'];
     let h = '<div class="cmp-table"><table><thead><tr><th>主体</th>';
     periods.forEach(p=> h += '<th>'+p+'</th>');
     h += '</tr></thead><tbody>';
 
-    // 板块对比实体(汇总行，高亮)
+    // 辅助：取某主体的某金额指标序列
+    function capArr(ent, capMetric){
+      if(ent.src==='calc_group'){ const o=D.groupCalc[capMetric]||{}; return periods.map(p=>o[p]==null?null:o[p]); }
+      if(ent.src==='agg'){ const o=(D.agg[capMetric]&&D.agg[capMetric][ent.block]&&D.agg[capMetric][ent.block][ent.label])||{}; return periods.map(p=>o[p]==null?null:o[p]); }
+      if(ent.src==='sun'){ const o=(D.raw[capMetric]&&D.raw[capMetric][ent.block]&&D.raw[capMetric][ent.block][ent.company])||{}; return periods.map(p=>o[p]==null?null:o[p]); }
+      if(ent.src==='bank'){ const o=D.bankAgg[capMetric]||{}; return periods.map(p=>o[p]==null?null:o[p]); }
+      return periods.map(()=>null);
+    }
+
+    // 每个对比实体：充足率行 + 资本子行
     S.entities.forEach(ent=>{
-      const arr = entityArr(ent, metric, isRatio);
-      // reg_industry 的 C 已是百分数，不再 ×100
-      const isRegPct = (ent.src==='reg' && isRatio);
+      const ratioArr = entityArr(ent, metric, true);
+      const isRegPct = (ent.src==='reg');
+      // 充足率行
       h += '<tr class="agg"><td>'+ent.name+'</td>';
-      arr.forEach(v=> {
+      ratioArr.forEach(v=> {
         if(v==null){ h+='<td></td>'; return; }
-        h += '<td>'+(isRegPct ? (parseFloat(v).toFixed(2)+'%') : fmtCmp(v,isRatio))+'</td>';
+        h += '<td>'+(isRegPct ? (parseFloat(v).toFixed(2)+'%') : fmtCmp(v,true))+'</td>';
       });
       h += '</tr>';
-    });
-    // 板块内明细公司
-    S.companies.forEach(c=>{
-      const vals = (D.raw[metric] && D.raw[metric][S.block] && D.raw[metric][S.block][c]) || {};
-      const cls = (c.indexOf('阳光')>=0) ? 'sun' : '';
-      h += '<tr class="'+cls+'"><td>'+c+'</td>';
-      periods.forEach(p=> h += '<td>'+(vals[p]==null?'':fmtCmp(vals[p],isRatio))+'</td>');
-      h += '</tr>';
-    });
-    // 人身险板块补充银行系 9 家明细
-    if(sec==='life'){
-      D.bankCompanies.forEach(c=>{
-        const vals = (D.bankRaw[metric] && D.bankRaw[metric][c]) || {};
-        h += '<tr class="bank"><td>'+c+'</td>';
-        periods.forEach(p=> h += '<td>'+(vals[p]==null?'':fmtCmp(vals[p],isRatio))+'</td>');
+      // 资本子行
+      CAP_METRICS.forEach(cmName=>{
+        h += '<tr class="sub"><td style="padding-left:22px;color:var(--sub);font-size:12px">└ '+cmName+'(亿元)</td>';
+        const cArr = capArr(ent, cmName);
+        cArr.forEach(v=> h += '<td>'+(v==null?'':fmtCmp(v,false))+'</td>');
         h += '</tr>';
       });
-    }
+    });
+
+    // 明细公司：每家充足率行 + 资本子行
+    const allCompanies = [...S.companies];
+    if(sec==='life') allCompanies.push(...D.bankCompanies.map(n=>({name:n,isBank:true})));
+
+    allCompanies.forEach(item=>{
+      const c = item.name || item;
+      const isBank = item.isBank || false;
+      const cls = (c.indexOf('阳光')>=0) ? 'sun' : (isBank ? 'bank' : '');
+      // 充足率行
+      const rVals = isBank
+        ? ((D.bankRaw[metric]&&D.bankRaw[metric][c])||{})
+        : ((D.raw[metric]&&D.raw[metric][S.block]&&D.raw[metric][S.block][c])||{});
+      h += '<tr class="'+cls+'"><td>'+c+'</td>';
+      periods.forEach(p=> h += '<td>'+(rVals[p]==null?'':fmtCmp(rVals[p],true))+'</td>');
+      h += '</tr>';
+      // 资本子行
+      CAP_METRICS.forEach(cmName=>{
+        h += '<tr class="sub"'+(cls?' class="sub '+cls+'"':'')+'><td style="padding-left:22px;color:var(--sub);font-size:12px">└ '+cmName+'(亿元)</td>';
+        const cVals = isBank
+          ? ((D.bankRaw[cmName]&&D.bankRaw[cmName][c])||{})
+          : ((D.raw[cmName]&&D.raw[cmName][S.block]&&D.raw[cmName][S.block][c])||{});
+        periods.forEach(p=> h += '<td>'+(cVals[p]==null?'':fmtCmp(cVals[p],false))+'</td>');
+        h += '</tr>';
+      });
+    });
+
     h += '</tbody></table></div>';
     document.getElementById('cmpDetail_'+sec).innerHTML = h;
   }
   function exportCmpCsv(){
     const D = window.COMPARE_DATA; if(!D) return;
     const metric = document.getElementById('cmpMetric').value;
-    const isRatio = cmpHas(D.ratioMetrics, metric);
     const periods = D.periods;
-    const aggLabel = isRatio ? '上市公司平均' : '上市公司合计';
-    let s = metric + '\n板块,主体,' + periods.join(',') + '\n';
+    const CAP_METRICS = ['实际资本','核心资本','附属资本','最低资本'];
+    let s = '上市公司对比_' + metric + '\n板块,主体,' + periods.join(',') + '\n';
+    // 辅助
+    function capVal(ent, capMetric, p){
+      if(ent.src==='calc_group'){ const o=D.groupCalc[capMetric]||{}; return o[p]==null?'':o[p]; }
+      if(ent.src==='agg'){ const o=(D.agg[capMetric]&&D.agg[capMetric][ent.block]&&D.agg[capMetric][ent.block][ent.label])||{}; return o[p]==null?'':o[p]; }
+      if(ent.src==='sun'){ const o=(D.raw[capMetric]&&D.raw[capMetric][ent.block]&&D.raw[capMetric][ent.block][ent.company])||{}; return o[p]==null?'':o[p]; }
+      if(ent.src==='bank'){ const o=D.bankAgg[capMetric]||{}; return o[p]==null?'':o[p]; }
+      return '';
+    }
+    function rawCapVal(block, company, capMetric, p){
+      const o=(D.raw[capMetric]&&D.raw[capMetric][block]&&D.raw[capMetric][block][company])||{};
+      return o[p]==null?'':o[p];
+    }
+
     CMP_SECS.forEach(sec=>{
       const S = D.sections[sec];
       s += S.title + ',,' + '\n';
+      // 对比实体
       S.entities.forEach(ent=>{
-        const arr = entityArr(ent, metric, isRatio);
-        const disp = ent.name.replace('上市公司平均', aggLabel);
-        s += ',' + disp + ',' + arr.map(v=> v==null?'':v).join(',') + '\n';
+        const arr = entityArr(ent, metric, true);
+        s += ',' + ent.name + ',' + arr.map(v=> v==null?'':v).join(',') + '\n';
+        CAP_METRICS.forEach(cm=>{
+          s += ',└ '+cm+'(亿元),' + periods.map(p=> capVal(ent, cm, p)).join(',') + '\n';
+        });
       });
+      // 明细公司
       S.companies.forEach(c=>{
-        const vals = (D.raw[metric] && D.raw[metric][S.block] && D.raw[metric][S.block][c]) || {};
-        s += ',' + c + ',' + periods.map(p=> vals[p]==null?'':vals[p]).join(',') + '\n';
+        const rVals = (D.raw[metric]&&D.raw[metric][S.block]&&D.raw[metric][S.block][c])||{};
+        s += ',' + c + ',' + periods.map(p=> rVals[p]==null?'':rVals[p]).join(',') + '\n';
+        CAP_METRICS.forEach(cm=>{
+          s += ',└ '+cm+'(亿元),' + periods.map(p=> rawCapVal(S.block,c,cm,p)).join(',') + '\n';
+        });
       });
+      // 银行系
       if(sec==='life'){
         D.bankCompanies.forEach(c=>{
-          const vals = (D.bankRaw[metric] && D.bankRaw[metric][c]) || {};
-          s += ',银保系·' + c + ',' + periods.map(p=> vals[p]==null?'':vals[p]).join(',') + '\n';
+          const rVals = (D.bankRaw[metric]&&D.bankRaw[metric][c])||{};
+          s += ',银保系·' + c + ',' + periods.map(p=> rVals[p]==null?'':rVals[p]).join(',') + '\n';
+          CAP_METRICS.forEach(cm=>{
+            const cVals = (D.bankRaw[cm]&&D.bankRaw[cm][c])||{};
+            s += ',└ '+cm+'(亿元),' + periods.map(p=> cVals[p]==null?'':cVals[p]).join(',') + '\n';
+          });
         });
       }
     });
@@ -1197,7 +1241,9 @@
   function start(){
     const cm=document.getElementById('cmpMetric');
     if(cm && window.COMPARE_DATA){
-      cm.innerHTML = window.COMPARE_DATA.metrics.map(m=>'<option value="'+m+'">'+m+'</option>').join('');
+      // 指标下拉只展示充足率(综合/核心)，资本类数据作为子行展示
+      const ratioMetrics = Object.keys(window.COMPARE_DATA.ratioMetrics);
+      cm.innerHTML = ratioMetrics.map(m=>'<option value="'+m+'">'+m+'</option>').join('');
       cm.value = '综合偿付能力充足率';
     }
     loadSeg(S.seg);
