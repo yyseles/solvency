@@ -5800,23 +5800,24 @@ window.COMPARE_DATA = {
     const D = window.COMPARE_DATA;
     const S = D.sections[sec];
     const periods = D.periods;
-    const seriesDefs = S.entities.map((ent, i)=>({
-      name: ent.name,
-      data: entityArr(ent, metric, isRatio).map(pctVal),
-      color: ['#2f6fdb','#16a085','#8e44ad','#c0392b','#e67e22','#f39c12','#7f8c8d'][i % 7],
-      w: (ent.src==='reg')? 2 : 3,
-      dash: ent.src==='reg'
-    }));
+    // reg_industry 的 C 已是百分数(如 236.3)，不再 ×100；其他比率数据需 ×100
+    const seriesDefs = S.entities.map((ent, i)=>{
+      const rawArr = entityArr(ent, metric, isRatio);
+      const data = (ent.src==='reg') ? rawArr : rawArr.map(pctVal);
+      return {
+        name: ent.name, data: data,
+        color: ['#2f6fdb','#16a085','#8e44ad','#c0392b','#e67e22','#f39c12','#7f8c8d'][i % 7]
+      };
+    });
     const series = seriesDefs.map(s=>({
-      name:s.name, type:'line', smooth:true, showSymbol:false, connectNulls: sec==='group',
-      lineStyle:{ width:s.w, type: s.dash?'dashed':'solid', color:s.color },
-      itemStyle:{ color:s.color }, emphasis:{ focus:'series' }, data:s.data
+      name:s.name, type:'bar',
+      itemStyle:{ color:s.color, borderRadius:[3,3,0,0] }, emphasis:{ focus:'series' }, data:s.data
     }));
     const option = {
       tooltip:{ trigger:'axis', valueFormatter:v=> v==null?'—':(v.toFixed(2)+'%') },
       legend:{ type:'scroll', top:2, textStyle:{ fontSize:11 } },
       grid:{ left:58, right:22, top:46, bottom:64 },
-      xAxis:{ type:'category', data:periods, boundaryGap:false, axisLabel:{ fontSize:11, rotate: periods.length>12?45:0 } },
+      xAxis:{ type:'category', data:periods, axisLabel:{ fontSize:11, rotate: periods.length>12?45:0 } },
       yAxis:{ type:'value', name:'充足率(%)', scale:true, axisLabel:{ formatter:v=> (Math.round(v*10)/10) } },
       dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:22}],
       series
@@ -5836,8 +5837,13 @@ window.COMPARE_DATA = {
     // 板块对比实体(汇总行，高亮)
     S.entities.forEach(ent=>{
       const arr = entityArr(ent, metric, isRatio);
+      // reg_industry 的 C 已是百分数，不再 ×100
+      const isRegPct = (ent.src==='reg' && isRatio);
       h += '<tr class="agg"><td>'+ent.name+'</td>';
-      arr.forEach(v=> h += '<td>'+(v==null?'':fmtCmp(v,isRatio))+'</td>');
+      arr.forEach(v=> {
+        if(v==null){ h+='<td></td>'; return; }
+        h += '<td>'+(isRegPct ? (parseFloat(v).toFixed(2)+'%') : fmtCmp(v,isRatio))+'</td>';
+      });
       h += '</tr>';
     });
     // 板块内明细公司
