@@ -281,26 +281,27 @@
         '<div class="card"><h3>各板块核心偿付能力充足率对比</h3>'+
           '<div id="allBarD" class="chart" style="height:340px"></div></div>'+
       '</div>';
+    const barLabel={show:true,position:'top',fontSize:11,color:'#666',formatter:p=>p.value!=null?(p.value*100).toFixed(1)+'%':'—'};
     setOpt('allBarC',{
       tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:v=>(v==null?'-':(v*100).toFixed(1)+'%')},
       legend:{data:['综合(加权)','综合(监管)'],top:0},
-      grid:{left:55,right:30,top:35,bottom:30},
+      grid:{left:55,right:30,top:45,bottom:30},
       xAxis:{type:'category',data:rows.map(r=>r.name)},
       yAxis:{type:'value',name:'充足率%',axisLabel:{formatter:v=>v+'%'}},
       series:[
-        {name:'综合(加权)',type:'bar',data:rows.map(r=>r.wC!=null?+(r.wC*100).toFixed(1):null),itemStyle:{color:'#2f6fed'}},
-        {name:'综合(监管)',type:'bar',data:rows.map(r=>r.reg?+r.reg.C.toFixed(1):null),itemStyle:{color:'#e67e22'}}
+        {name:'综合(加权)',type:'bar',data:rows.map(r=>r.wC!=null?+r.wC.toFixed(2):null),itemStyle:{color:'#2f6fed'},label:barLabel},
+        {name:'综合(监管)',type:'bar',data:rows.map(r=>r.reg?+(r.reg.C/100).toFixed(2):null),itemStyle:{color:'#e67e22'},label:barLabel}
       ]
     });
     setOpt('allBarD',{
       tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:v=>(v==null?'-':(v*100).toFixed(1)+'%')},
       legend:{data:['核心(加权)','核心(监管)'],top:0},
-      grid:{left:55,right:30,top:35,bottom:30},
+      grid:{left:55,right:30,top:45,bottom:30},
       xAxis:{type:'category',data:rows.map(r=>r.name)},
       yAxis:{type:'value',name:'充足率%',axisLabel:{formatter:v=>v+'%'}},
       series:[
-        {name:'核心(加权)',type:'bar',data:rows.map(r=>r.wD!=null?+(r.wD*100).toFixed(1):null),itemStyle:{color:'#16a085'}},
-        {name:'核心(监管)',type:'bar',data:rows.map(r=>r.reg?+r.reg.D.toFixed(1):null),itemStyle:{color:'#f1c40f'}}
+        {name:'核心(加权)',type:'bar',data:rows.map(r=>r.wD!=null?+r.wD.toFixed(2):null),itemStyle:{color:'#16a085'},label:barLabel},
+        {name:'核心(监管)',type:'bar',data:rows.map(r=>r.reg?+(r.reg.D/100).toFixed(2):null),itemStyle:{color:'#f1c40f'},label:barLabel}
       ]
     });
     setTimeout(()=>{ if(charts.allBarC) charts.allBarC.resize(); },30);
