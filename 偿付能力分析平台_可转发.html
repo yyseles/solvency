@@ -1925,7 +1925,7 @@ window.CMP_CONFIG = {
         dataB.push(vb==null?null:(ent.src==='reg'?vb:pctVal(vb)));
       });
       // 差异数据（新期-旧期）
-      const diffData = dataA.map((v,i)=> (v!=null && dataB[i]!=null) ? +(v - dataB[i]).toFixed(1) : null);
+      const diffData = dataA.map((v,i)=> (v!=null && dataB[i]!=null) ? +(v - dataB[i]).toFixed(2) : null);
       const barLabel = { show:true, position:'top', fontSize:10, fontWeight:600, color:'#333',
         formatter:p=> p.value!=null ? p.value.toFixed(2) : '' };
       const option = {
@@ -1945,7 +1945,7 @@ window.CMP_CONFIG = {
             itemStyle:{ color:'#c0392b' }, symbol:'circle', symbolSize:6,
             lineStyle:{ width:2 },
             label:{ show:true, position:'top', fontSize:9, fontWeight:600, color:'#c0392b',
-              formatter:p=> p.value!=null ? ((p.value>=0?'+':'')+p.value+'') : '' }
+              formatter:p=> p.value!=null ? ((p.value>=0?'+':'')+p.value.toFixed(2)) : '' }
           }
         ]
       };
