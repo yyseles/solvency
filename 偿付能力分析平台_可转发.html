@@ -1007,8 +1007,8 @@ let REG_INDUSTRY = {
           return h;
         }
       },
-      legend:{data:[...MC_COMP.map(c=>c.n),'最低资本合计(N)'],top:0,type:'scroll',textStyle:{fontSize:11},itemWidth:14,itemHeight:10,itemGap:8},
-      grid:{left:55,right:65,top:55,bottom:70},
+      legend:{data:[...MC_COMP.map(c=>c.n),'最低资本合计(N)'],top:0,type:'plain',textStyle:{fontSize:10},itemWidth:12,itemHeight:9,itemGap:6},
+      grid:{left:55,right:65,top:70,bottom:70},
       xAxis:{type:'category',data:labels,axisLabel:{rotate:40,fontSize:10,interval:'auto'}},
       yAxis:[
         {type:'value',name:'占N比例%',axisLabel:{formatter:v=>v.toFixed(0)+'%',fontSize:10},nameTextStyle:{fontSize:11}},
@@ -1045,8 +1045,8 @@ let REG_INDUSTRY = {
           return h;
         }
       },
-      legend:{data:[...MC_COMP.map(c=>c.n),'行业最低资本合计(N)'],top:0,type:'scroll',textStyle:{fontSize:11},itemWidth:14,itemHeight:10,itemGap:8},
-      grid:{left:55,right:65,top:55,bottom:70},
+      legend:{data:[...MC_COMP.map(c=>c.n),'行业最低资本合计(N)'],top:0,type:'plain',textStyle:{fontSize:10},itemWidth:12,itemHeight:9,itemGap:6},
+      grid:{left:55,right:65,top:70,bottom:70},
       xAxis:{type:'category',data:labels,axisLabel:{rotate:40,fontSize:10,interval:'auto'}},
       yAxis:[
         {type:'value',name:'占N比例%',axisLabel:{formatter:v=>v.toFixed(0)+'%',fontSize:10},nameTextStyle:{fontSize:11}},
