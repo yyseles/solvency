@@ -873,64 +873,7 @@
     const kIdx=periods.indexOf(k);
     const latestK=kIdx>=0?k:periods[periods.length-1];
 
-    // ---- 图表：核心资本明细拆分（占比）左=行业 右=公司 ----
-    // 占比图按用户口径重组：一级+二级保单未来盈余合并、删除大灾准备金、长股投/投房/非认可/递延单列、其他核心二级单列、其余其他项合计
-    const RATIO_ITEMS=[
-      ['净资产','net','#2f6fed'],
-      ['非认可资产','adj_nonrec','#e74c3c'],
-      ['长期股权投资差额','adj_lti','#f39c12'],
-      ['投资性房地产增值','adj_invprop','#9b59b6'],
-      ['递延所得税资产','adj_dta','#1abc9c'],
-      ['保单未来盈余',['adj_fvs','c2_fvm'],'#27ae60'],
-      ['其他核心二级资本','c2_oth','#8e44ad'],
-      ['其他项目合计',['adj_liab','adj_other','c2_pref','c2_ded'],'#95a5a6'],
-    ];
-    function sumFields(fields, pk){
-      const arr=Array.isArray(fields)?fields:[fields];
-      let s=0; for(const f of arr) s+=sumIndustry(f,pk); return s;
-    }
-    function compFields(fields, pk){
-      const arr=Array.isArray(fields)?fields:[fields];
-      let s=null; for(const f of arr){ const v=companyVal(f,pk); if(v!=null) s=(s||0)+v; } return s;
-    }
-
-    const indC1tot=sumIndustry('core1',latestK);
-    const indC2tot=sumIndustry('core2',latestK);
-    const indCoreTot=indC1tot+indC2tot;
-    const compC1tot=companyVal('core1',latestK);
-    const compC2tot=companyVal('core2',latestK);
-    const compCoreTot=(compC1tot||0)+(compC2tot||0);
-
-    const indChartData=RATIO_ITEMS.map(it=>({name:it[0], raw:sumFields(it[1],latestK), color:it[2]}));
-    const compChartData=RATIO_ITEMS.map(it=>({name:it[0], raw:compFields(it[1],latestK), color:it[2]}));
-
-    const indLabel=(KEY2PERIOD[latestK]&&KEY2PERIOD[latestK].label)||latestK;
-    const indTitle=document.getElementById('coreDetailIndTitle');
-    if(indTitle) indTitle.textContent='核心资本明细拆分 · 行业占比（'+indLabel+'）';
-    const compTitle=document.getElementById('coreDetailChartCompTitle');
-    if(compTitle) compTitle.textContent='核心资本明细拆分 · '+(ent||'未选公司')+'占比';
-
-    function ratioChartOpt(dataArr, total){
-      return {
-        tooltip:{trigger:'axis',axisPointer:{type:'shadow'},
-          formatter:function(p){
-            const d=p[0]; const v=d.value!=null?d.value:null; const raw=d.data.raw;
-            return d.name+'<br/>占比：'+(v!=null?v.toFixed(2)+'%':'—')+'<br/>金额：'+(raw!=null?(raw/10000).toFixed(1)+' 亿':'—');
-          }},
-        grid:{left:115,right:60,top:24,bottom:24},
-        xAxis:{type:'value',name:'占核心资本 %',nameLocation:'end',axisLabel:{formatter:v=>v.toFixed(0)+'%'}},
-        yAxis:{type:'category',data:dataArr.map(i=>i.name),axisLabel:{fontSize:10}},
-        series:[{type:'bar',
-          data:dataArr.map(i=>({value: total? +(i.raw/total*100).toFixed(2):null, raw:i.raw, itemStyle:{color:i.color}})),
-          barWidth:'62%',
-          label:{show:true,fontSize:10,
-            position:function(pp){ return pp.value!=null && pp.value<0 ? 'left':'right'; },
-            formatter:pp=>pp.value!=null?pp.value.toFixed(1)+'%':''}
-        }]
-      };
-    }
-    setOpt('coreDetailChartInd', ratioChartOpt(indChartData, indCoreTot));
-    setOpt('coreDetailChartComp', ratioChartOpt(compChartData, compCoreTot));
+    // 占比图已移除：核心二级资本明细绝大多数公司未披露，拆分结果无可分析性（2026-08-05）
 
     // ---- 表格：核心资本构成（2026Q1）四列：公司金额/公司占比/行业金额/行业占比 ----
     const tk='2026Q1';
