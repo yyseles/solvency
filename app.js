@@ -331,19 +331,28 @@
         '<div class="card"><h3>人身保险公司 · 综合 vs 核心</h3><div id="allBar_life" class="chart" style="height:320px"></div></div>'+
         '<div class="card"><h3>再保险公司 · 综合 vs 核心</h3><div id="allBar_reins" class="chart" style="height:320px"></div></div>'+
       '</div>';
-    const barLabel={show:true,position:'top',fontSize:11,color:'#666',formatter:p=>p.value!=null?(p.value*100).toFixed(1)+'%':'—'};
+    const barLabel={show:true,position:'top',fontSize:10,color:'#666',formatter:p=>p.value!=null?(p.value*100).toFixed(1)+'%':'—'};
+    const subColors=['#16a085','#8e44ad','#c0392b','#16a0a0'];
     [['group','allBar_group'],['property','allBar_property'],['life','allBar_life'],['reins','allBar_reins']].forEach(([seg,id])=>{
       const r=segRowMap[seg]; const hasReg=!!r.reg;
-      const series=[
-        {name:'计算加权',type:'bar',data:[r.wC!=null?+r.wC.toFixed(2):null, r.wD!=null?+r.wD.toFixed(2):null],
-          itemStyle:{color:'#2f6fed'}, label:barLabel},
-      ];
-      if(hasReg) series.push({name:'监管披露',type:'bar',
-        data:[+(r.reg.C/100).toFixed(2), +(r.reg.D/100).toFixed(2)], itemStyle:{color:'#e67e22'}, label:barLabel});
+      const series=[], legend=[];
+      series.push({name:'整体(加权)',type:'bar',
+        data:[r.wC!=null?+r.wC.toFixed(2):null, r.wD!=null?+r.wD.toFixed(2):null],
+        itemStyle:{color:'#2f6fed'}, label:barLabel}); legend.push('整体(加权)');
+      if(hasReg){ series.push({name:'整体(监管)',type:'bar',
+        data:[+(r.reg.C/100).toFixed(2), +(r.reg.D/100).toFixed(2)], itemStyle:{color:'#e67e22'}, label:barLabel}); legend.push('整体(监管)'); }
+      (SUBSETS[seg]||[]).forEach((sb,si)=>{
+        const sr=subRow(seg, sb.companies);
+        const nm=sb.label.replace('其中：','');
+        series.push({name:nm,type:'bar',
+          data:[sr.wC!=null?+sr.wC.toFixed(2):null, sr.wD!=null?+sr.wD.toFixed(2):null],
+          itemStyle:{color:subColors[si%subColors.length]}, label:barLabel});
+        legend.push(nm);
+      });
       setOpt(id,{
         tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:v=>(v==null?'-':(v*100).toFixed(1)+'%')},
-        legend:{data: hasReg?['计算加权','监管披露']:['计算加权'], top:0},
-        grid:{left:55,right:30,top:45,bottom:30},
+        legend:{data:legend, top:0, type:'scroll', textStyle:{fontSize:10}},
+        grid:{left:55,right:18,top:50,bottom:30},
         xAxis:{type:'category',data:['综合偿付能力充足率','核心偿付能力充足率']},
         yAxis:{type:'value',name:'充足率%',axisLabel:{formatter:v=>v+'%'}},
         series
