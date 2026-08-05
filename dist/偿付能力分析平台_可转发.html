@@ -902,57 +902,101 @@ window.CMP_CONFIG = {
       COMPS=saveC; DATA=saveD; KEY2PERIOD=saveK; TL=saveTL;
       return {seg,name:SEG_NAMES[seg],label:lastP.label,wC,wD,reg,n,rate};
     });
+    // 「其中」子集定义（在每个板块主行下展开）
+    const SUBSETS = {
+      group: [
+        { label:'其中：上市保险集团', companies:['平安集团','人保集团','太保集团','太平集团'] },
+        { label:'其中：阳光集团', companies:['阳光集团'] },
+      ],
+      property: [
+        { label:'其中：上市财险公司', companies:['平安产险','人保财险','太保财险','太平财险','众安财产','大地财产'] },
+        { label:'其中：阳光财产', companies:['阳光财产'] },
+      ],
+      life: [
+        { label:'其中：上市人身险公司', companies:['平安寿险','人保寿险','太保寿险','太平人寿','中国人寿','新华保险'] },
+        { label:'其中：阳光人寿', companies:['阳光人寿'] },
+        { label:'其中：银保系公司', companies:['工银安盛','光大永明','建信人寿','交银人寿','中荷人寿','农银人寿','中银三星','中邮人寿','招商信诺'] },
+      ],
+    };
+    // 计算某板块下「其中」子集行的加权充足率与达标率
+    function subRow(seg, compsIn){
+      const s=D.segments[seg];
+      const companies=compsIn.filter(c=> s.companies.includes(c)); // 与板块实际公司求交集，剔除不存在项
+      const saveC=COMPS, saveD=DATA, saveK=KEY2PERIOD, saveTL=TL;
+      COMPS=companies; DATA=s.data;
+      KEY2PERIOD={}; s.periods.forEach(p=>KEY2PERIOD[p.key]=p); TL=s.periods.map(p=>p.key);
+      const lastP=s.periods[s.periods.length-1]; const lastK=lastP.key;
+      const wC=weightedAt(lastK,'C'), wD=weightedAt(lastK,'D');
+      let comp=0,bad=0,nodata=0;
+      for(const c of companies){ const st=statusOf(c,lastK); if(st==='ok')comp++; else if(st==='bad')bad++; else nodata++; }
+      const disclosed=comp+bad; const rate=disclosed?comp/disclosed:0;
+      COMPS=saveC; DATA=saveD; KEY2PERIOD=saveK; TL=saveTL;
+      return {wC,wD,n:companies.length,rate};
+    }
     const box=document.getElementById('overviewAll');
     // 先释放旧图表实例，避免 innerHTML 重建后实例仍绑定到已移除的旧 DOM（导致切换回此 tab 时图不显示）
-    ['allBarC','allBarD'].forEach(id=>{ if(charts[id]){ try{charts[id].dispose();}catch(e){} charts[id]=null; } });
+    ['allBar_group','allBar_property','allBar_life','allBar_reins'].forEach(id=>{ if(charts[id]){ try{charts[id].dispose();}catch(e){} charts[id]=null; } });
+    // 组装表格 tbody：每个板块主行 + 其「其中」子集行
+    const segRowMap={}; rows.forEach(r=>segRowMap[r.seg]=r);
+    let tbody='';
+    rows.forEach(r=>{
+      tbody += `<tr>`+
+        `<td style="text-align:left;font-weight:600">${r.name}</td>`+
+        `<td>${r.label}</td>`+
+        `<td style="color:${colorFor(r.wC,1.0)};font-weight:600">${pct(r.wC)}</td>`+
+        `<td>${r.reg?regPct(r.reg.C):'—'}</td>`+
+        `<td style="color:${colorFor(r.wD,0.5)};font-weight:600">${pct(r.wD)}</td>`+
+        `<td>${r.reg?regPct(r.reg.D):'—'}</td>`+
+        `<td>${r.n} 家</td>`+
+        `<td>${(r.rate*100).toFixed(1)}%</td>`+
+      `</tr>`;
+      (SUBSETS[r.seg]||[]).forEach(sb=>{
+        const sr=subRow(r.seg, sb.companies);
+        tbody += `<tr style="background:#fafbfc">`+
+          `<td style="text-align:left;padding-left:24px;color:#556">${sb.label}</td>`+
+          `<td></td>`+
+          `<td style="color:${colorFor(sr.wC,1.0)};font-weight:600">${pct(sr.wC)}</td>`+
+          `<td>—</td>`+
+          `<td style="color:${colorFor(sr.wD,0.5)};font-weight:600">${pct(sr.wD)}</td>`+
+          `<td>—</td>`+
+          `<td>${sr.n} 家</td>`+
+          `<td>${(sr.rate*100).toFixed(1)}%</td>`+
+        `</tr>`;
+      });
+    });
     box.innerHTML =
-      '<div class="hint" style="margin-bottom:14px">以下为各细分板块最新报告期的行业偿付能力概览。计算加权口径为本平台基于个体披露自算（综合=Σ实际资本/Σ最低资本，核心=Σ核心资本/Σ最低资本）；监管披露口径为金融监管总局直接披露（集团暂无监管披露口径，以「—」表示）。</div>'+
+      '<div class="hint" style="margin-bottom:14px">以下为各细分板块最新报告期的行业偿付能力概览。计算加权口径为本平台基于个体披露自算（综合=Σ实际资本/Σ最低资本，核心=Σ核心资本/Σ最低资本）；监管披露口径为金融监管总局直接披露（集团暂无监管披露口径，以「—」表示）。「其中」子集行仅列计算加权口径，监管披露口径不区分子集，统一以「—」表示。</div>'+
       '<div class="card"><h3>各板块最新偿付能力概览</h3>'+
         '<div style="overflow-x:auto;border:1px solid var(--line);border-radius:10px"><table style="width:100%;min-width:680px;table-layout:auto;font-size:13px;border-collapse:separate;border-spacing:0">'+
           '<thead><tr><th>板块</th><th>最新期</th><th>综合(加权)</th><th>综合(监管)</th><th>核心(加权)</th><th>核心(监管)</th><th>样本数</th><th>达标率</th></tr></thead>'+
-          '<tbody>'+rows.map(r=>`<tr>`+
-            `<td style="text-align:left;font-weight:600">${r.name}</td>`+
-            `<td>${r.label}</td>`+
-            `<td style="color:${colorFor(r.wC,1.0)};font-weight:600">${pct(r.wC)}</td>`+
-            `<td>${r.reg?regPct(r.reg.C):'—'}</td>`+
-            `<td style="color:${colorFor(r.wD,0.5)};font-weight:600">${pct(r.wD)}</td>`+
-            `<td>${r.reg?regPct(r.reg.D):'—'}</td>`+
-            `<td>${r.n} 家</td>`+
-            `<td>${(r.rate*100).toFixed(1)}%</td>`+
-          `</tr>`).join('')+'</tbody>'+
+          '<tbody>'+tbody+'</tbody>'+
         '</table>'+
       '</div>'+
       '<div class="grid2">'+
-        '<div class="card"><h3>各板块综合偿付能力充足率对比</h3>'+
-          '<div id="allBarC" class="chart" style="height:340px"></div></div>'+
-        '<div class="card"><h3>各板块核心偿付能力充足率对比</h3>'+
-          '<div id="allBarD" class="chart" style="height:340px"></div></div>'+
+        '<div class="card"><h3>保险集团控股公司 · 综合 vs 核心</h3><div id="allBar_group" class="chart" style="height:320px"></div></div>'+
+        '<div class="card"><h3>财产保险公司 · 综合 vs 核心</h3><div id="allBar_property" class="chart" style="height:320px"></div></div>'+
+        '<div class="card"><h3>人身保险公司 · 综合 vs 核心</h3><div id="allBar_life" class="chart" style="height:320px"></div></div>'+
+        '<div class="card"><h3>再保险公司 · 综合 vs 核心</h3><div id="allBar_reins" class="chart" style="height:320px"></div></div>'+
       '</div>';
     const barLabel={show:true,position:'top',fontSize:11,color:'#666',formatter:p=>p.value!=null?(p.value*100).toFixed(1)+'%':'—'};
-    setOpt('allBarC',{
-      tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:v=>(v==null?'-':(v*100).toFixed(1)+'%')},
-      legend:{data:['综合(加权)','综合(监管)'],top:0},
-      grid:{left:55,right:30,top:45,bottom:30},
-      xAxis:{type:'category',data:rows.map(r=>r.name)},
-      yAxis:{type:'value',name:'充足率%',axisLabel:{formatter:v=>v+'%'}},
-      series:[
-        {name:'综合(加权)',type:'bar',data:rows.map(r=>r.wC!=null?+r.wC.toFixed(2):null),itemStyle:{color:'#2f6fed'},label:barLabel},
-        {name:'综合(监管)',type:'bar',data:rows.map(r=>r.reg?+(r.reg.C/100).toFixed(2):null),itemStyle:{color:'#e67e22'},label:barLabel}
-      ]
+    [['group','allBar_group'],['property','allBar_property'],['life','allBar_life'],['reins','allBar_reins']].forEach(([seg,id])=>{
+      const r=segRowMap[seg]; const hasReg=!!r.reg;
+      const series=[
+        {name:'计算加权',type:'bar',data:[r.wC!=null?+r.wC.toFixed(2):null, r.wD!=null?+r.wD.toFixed(2):null],
+          itemStyle:{color:'#2f6fed'}, label:barLabel},
+      ];
+      if(hasReg) series.push({name:'监管披露',type:'bar',
+        data:[+(r.reg.C/100).toFixed(2), +(r.reg.D/100).toFixed(2)], itemStyle:{color:'#e67e22'}, label:barLabel});
+      setOpt(id,{
+        tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:v=>(v==null?'-':(v*100).toFixed(1)+'%')},
+        legend:{data: hasReg?['计算加权','监管披露']:['计算加权'], top:0},
+        grid:{left:55,right:30,top:45,bottom:30},
+        xAxis:{type:'category',data:['综合偿付能力充足率','核心偿付能力充足率']},
+        yAxis:{type:'value',name:'充足率%',axisLabel:{formatter:v=>v+'%'}},
+        series
+      });
     });
-    setOpt('allBarD',{
-      tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:v=>(v==null?'-':(v*100).toFixed(1)+'%')},
-      legend:{data:['核心(加权)','核心(监管)'],top:0},
-      grid:{left:55,right:30,top:45,bottom:30},
-      xAxis:{type:'category',data:rows.map(r=>r.name)},
-      yAxis:{type:'value',name:'充足率%',axisLabel:{formatter:v=>v+'%'}},
-      series:[
-        {name:'核心(加权)',type:'bar',data:rows.map(r=>r.wD!=null?+r.wD.toFixed(2):null),itemStyle:{color:'#16a085'},label:barLabel},
-        {name:'核心(监管)',type:'bar',data:rows.map(r=>r.reg?+(r.reg.D/100).toFixed(2):null),itemStyle:{color:'#f1c40f'},label:barLabel}
-      ]
-    });
-    setTimeout(()=>{ if(charts.allBarC) charts.allBarC.resize(); },30);
-    setTimeout(()=>{ if(charts.allBarD) charts.allBarD.resize(); },30);
+    setTimeout(()=>{ ['allBar_group','allBar_property','allBar_life','allBar_reins'].forEach(id=>{ if(charts[id]) charts[id].resize(); }); },30);
   }
   function kpi(lab,val,sub,color){return `<div class="kpi"><div class="lab">${lab}</div><div class="val" style="color:${color}">${val}</div><div class="sub">${sub}</div></div>`;}
   function kpi3(lab,val,stats,color){
@@ -1925,7 +1969,7 @@ window.CMP_CONFIG = {
         dataB.push(vb==null?null:(ent.src==='reg'?vb:pctVal(vb)));
       });
       // 差异数据（新期-旧期）
-      const diffData = dataA.map((v,i)=> (v!=null && dataB[i]!=null) ? +(v - dataB[i]).toFixed(1) : null);
+      const diffData = dataA.map((v,i)=> (v!=null && dataB[i]!=null) ? +(v - dataB[i]).toFixed(2) : null);
       const barLabel = { show:true, position:'top', fontSize:10, fontWeight:600, color:'#333',
         formatter:p=> p.value!=null ? p.value.toFixed(2) : '' };
       const option = {
@@ -1945,7 +1989,7 @@ window.CMP_CONFIG = {
             itemStyle:{ color:'#c0392b' }, symbol:'circle', symbolSize:6,
             lineStyle:{ width:2 },
             label:{ show:true, position:'top', fontSize:9, fontWeight:600, color:'#c0392b',
-              formatter:p=> p.value!=null ? ((p.value>=0?'+':'')+p.value+'') : '' }
+              formatter:p=> p.value!=null ? ((p.value>=0?'+':'')+p.value.toFixed(2)) : '' }
           }
         ]
       };
