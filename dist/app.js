@@ -874,6 +874,26 @@
     const latestK=kIdx>=0?k:periods[periods.length-1];
 
     // ---- 图表：核心资本明细拆分（占比）左=行业 右=公司 ----
+    // 占比图按用户口径重组：一级+二级保单未来盈余合并、删除大灾准备金、长股投/投房/非认可/递延单列、其他核心二级单列、其余其他项合计
+    const RATIO_ITEMS=[
+      ['净资产','net','#2f6fed'],
+      ['非认可资产','adj_nonrec','#e74c3c'],
+      ['长期股权投资差额','adj_lti','#f39c12'],
+      ['投资性房地产增值','adj_invprop','#9b59b6'],
+      ['递延所得税资产','adj_dta','#1abc9c'],
+      ['保单未来盈余',['adj_fvs','c2_fvm'],'#27ae60'],
+      ['其他核心二级资本','c2_oth','#8e44ad'],
+      ['其他项目合计',['adj_liab','adj_other','c2_pref','c2_ded'],'#95a5a6'],
+    ];
+    function sumFields(fields, pk){
+      const arr=Array.isArray(fields)?fields:[fields];
+      let s=0; for(const f of arr) s+=sumIndustry(f,pk); return s;
+    }
+    function compFields(fields, pk){
+      const arr=Array.isArray(fields)?fields:[fields];
+      let s=null; for(const f of arr){ const v=companyVal(f,pk); if(v!=null) s=(s||0)+v; } return s;
+    }
+
     const indC1tot=sumIndustry('core1',latestK);
     const indC2tot=sumIndustry('core2',latestK);
     const indCoreTot=indC1tot+indC2tot;
@@ -881,9 +901,8 @@
     const compC2tot=companyVal('core2',latestK);
     const compCoreTot=(compC1tot||0)+(compC2tot||0);
 
-    const allItems=C1_ITEMS.concat(C2_ITEMS);
-    const indChartData=allItems.map(it=>({name:it[0], raw:sumIndustry(it[2],latestK), color:it[3]}));
-    const compChartData=allItems.map(it=>({name:it[0], raw:companyVal(it[2],latestK), color:it[3]}));
+    const indChartData=RATIO_ITEMS.map(it=>({name:it[0], raw:sumFields(it[1],latestK), color:it[2]}));
+    const compChartData=RATIO_ITEMS.map(it=>({name:it[0], raw:compFields(it[1],latestK), color:it[2]}));
 
     const indLabel=(KEY2PERIOD[latestK]&&KEY2PERIOD[latestK].label)||latestK;
     const indTitle=document.getElementById('coreDetailIndTitle');
