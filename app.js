@@ -1569,10 +1569,11 @@
     const displayPeriods = (sec==='group') ? periods.filter(p=> p.endsWith('Q2')||p.endsWith('Q4')) : periods;
     const CAP_METRICS = ['实际资本','核心资本','附属资本','最低资本'];
     const zhMetrics = ['综合偿付能力充足率','核心偿付能力充足率'];
-    const metricTags = ['【综合】','【核心】'];
+    // 期次倒序：最新期(如26Q1)放第一列
+    const revPeriods = [...displayPeriods].reverse();
 
     let h = '<div class="cmp-table"><table><thead><tr><th>主体</th>';
-    displayPeriods.forEach(p=> h += '<th>'+p+'</th>');
+    revPeriods.forEach(p=> h += '<th>'+p+'</th>');
     h += '</tr></thead><tbody>';
 
     // 公司列表（去重阳光系，避免与 entities 中汇总行重复）
@@ -1584,17 +1585,16 @@
       return !entityCompanyNames.has(c);
     });
 
-    // 综合放一起、核心放一起
+    // 综合放一起、核心放一起（不再输出【综合】【核心】标题行）
     zhMetrics.forEach((metric, mi) => {
-      h += '<tr class="blk"><td colspan="'+(displayPeriods.length+1)+'">'+metricTags[mi]+' '+metric+'</td></tr>';
 
       // 实体行（含资本子行）
       S.entities.forEach(ent=>{
         const arr = entityArr(ent, metric);
         const isRegPct = (ent.src==='reg');
         const dispArr = (sec==='group')
-          ? arr.filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4'))
-          : arr;
+          ? arr.filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4')).reverse()
+          : [...arr].reverse();
         h += '<tr class="agg"><td>'+ent.name+'</td>';
         dispArr.forEach(v=> {
           if(v==null){ h+='<td></td>'; return; }
@@ -1605,8 +1605,8 @@
           CAP_METRICS.forEach(cmName=>{
             const cArr = capArr(ent, cmName);
             const dispCArr = (sec==='group')
-              ? cArr.filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4'))
-              : cArr;
+              ? cArr.filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4')).reverse()
+              : [...cArr].reverse();
             h += '<tr class="sub"><td style="padding-left:22px;color:var(--sub);font-size:12px">└ '+cmName+'(亿元)</td>';
             dispCArr.forEach(v=> h += '<td>'+(v==null?'':fmtCmp(v,false))+'</td>');
             h += '</tr>';
@@ -1622,9 +1622,10 @@
         const rVals = isBank
           ? cmpBankRatioMap(c, metric)
           : cmpCompanyRatioMap(c, S.dataBlock, metric);
+        const rawVals = periods.map(p=> rVals[p]);
         const dispVals = (sec==='group')
-          ? periods.map(p=> rVals[p]).filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4'))
-          : periods.map(p=> rVals[p]);
+          ? rawVals.filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4')).reverse()
+          : [...rawVals].reverse();
         h += '<tr class="'+cls+'"><td>'+c+'</td>';
         dispVals.forEach(v=> h += '<td>'+(v==null?'':fmtCmp(v,true))+'</td>');
         h += '</tr>';
@@ -1632,9 +1633,10 @@
           const cVals = isBank
             ? cmpBankAmtMap(c, cmName)
             : cmpCompanyAmtMap(c, S.dataBlock, cmName);
+          const rawCVals = periods.map(p=> cVals[p]);
           const dispCVals = (sec==='group')
-            ? periods.map(p=> cVals[p]).filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4'))
-            : periods.map(p=> cVals[p]);
+            ? rawCVals.filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4')).reverse()
+            : [...rawCVals].reverse();
           h += '<tr class="sub'+(cls?' '+cls:'')+'"><td style="padding-left:22px;color:var(--sub);font-size:12px">└ '+cmName+'(亿元)</td>';
           dispCVals.forEach(v=> h += '<td>'+(v==null?'':fmtCmp(v,false))+'</td>');
           h += '</tr>';
