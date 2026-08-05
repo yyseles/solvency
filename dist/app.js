@@ -873,62 +873,99 @@
     const kIdx=periods.indexOf(k);
     const latestK=kIdx>=0?k:periods[periods.length-1];
 
-    // 行业数据
-    const indC1=C1_ITEMS.map(item=>({name:item[0], val:sumIndustry(item[2],latestK), color:item[3]}));
-    const indC2=C2_ITEMS.map(item=>({name:item[0], val:sumIndustry(item[2],latestK), color:item[3]}));
-    // 公司数据
-    const compC1=C1_ITEMS.map(item=>({name:item[0], val:companyVal(item[2],latestK), color:item[3]}));
-    const compC2=C2_ITEMS.map(item=>({name:item[0], val:companyVal(item[2],latestK), color:item[3]}));
+    // ---- 图表：核心资本明细拆分（占比）左=行业 右=公司 ----
+    const indC1tot=sumIndustry('core1',latestK);
+    const indC2tot=sumIndustry('core2',latestK);
+    const indCoreTot=indC1tot+indC2tot;
+    const compC1tot=companyVal('core1',latestK);
+    const compC2tot=companyVal('core2',latestK);
+    const compCoreTot=(compC1tot||0)+(compC2tot||0);
 
-    const allItems=[...indC1,...indC2];
-    const allComp=[...compC1,...compC2];
+    const allItems=C1_ITEMS.concat(C2_ITEMS);
+    const indChartData=allItems.map(it=>({name:it[0], raw:sumIndustry(it[2],latestK), color:it[3]}));
+    const compChartData=allItems.map(it=>({name:it[0], raw:companyVal(it[2],latestK), color:it[3]}));
 
-    setOpt('coreDetailChart',{
-      tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:v=>v==null?'—':(v/10000).toFixed(1)+' 亿'},
-      legend:{data:['行业汇总', ent||'未选公司'],top:0},
-      grid:{left:100,right:30,top:40,bottom:50},
-      xAxis:{type:'value',name:'亿元',axisLabel:{formatter:v=>(v/10000).toFixed(0)}},
-      yAxis:{type:'category',data:allItems.map(i=>i.name),axisLabel:{fontSize:11}},
-      series:[
-        {name:'行业汇总',type:'bar',data:allItems.map(i=>i.val),itemStyle:{color:params=>allItems[params.dataIndex].color},label:{show:true,position:'right',fontSize:10,formatter:p=>p.value!=null?(p.value/10000).toFixed(0):''}},
-        {name:ent||'未选公司',type:'bar',data:allComp.map(i=>i.val),itemStyle:{color:'#cfd8dc',opacity:.7},label:{show:true,position:'right',fontSize:10,formatter:p=>p.value!=null?(p.value/10000).toFixed(0):''}}
-      ]
-    });
+    const indLabel=(KEY2PERIOD[latestK]&&KEY2PERIOD[latestK].label)||latestK;
+    const indTitle=document.getElementById('coreDetailIndTitle');
+    if(indTitle) indTitle.textContent='核心资本明细拆分 · 行业占比（'+indLabel+'）';
+    const compTitle=document.getElementById('coreDetailChartCompTitle');
+    if(compTitle) compTitle.textContent='核心资本明细拆分 · '+(ent||'未选公司')+'占比';
 
-    // ---- 表格：核心资本构成明细 ----
-    const ttl=document.getElementById('coreDetailTblTitle');
-    if(ttl) ttl.textContent='核心资本构成（'+KEY2PERIOD[latestK].label+'）';
+    function ratioChartOpt(dataArr, total){
+      return {
+        tooltip:{trigger:'axis',axisPointer:{type:'shadow'},
+          formatter:function(p){
+            const d=p[0]; const v=d.value!=null?d.value:null; const raw=d.data.raw;
+            return d.name+'<br/>占比：'+(v!=null?v.toFixed(2)+'%':'—')+'<br/>金额：'+(raw!=null?(raw/10000).toFixed(1)+' 亿':'—');
+          }},
+        grid:{left:115,right:60,top:24,bottom:24},
+        xAxis:{type:'value',name:'占核心资本 %',nameLocation:'end',axisLabel:{formatter:v=>v.toFixed(0)+'%'}},
+        yAxis:{type:'category',data:dataArr.map(i=>i.name),axisLabel:{fontSize:10}},
+        series:[{type:'bar',
+          data:dataArr.map(i=>({value: total? +(i.raw/total*100).toFixed(2):null, raw:i.raw, itemStyle:{color:i.color}})),
+          barWidth:'62%',
+          label:{show:true,fontSize:10,
+            position:function(pp){ return pp.value!=null && pp.value<0 ? 'left':'right'; },
+            formatter:pp=>pp.value!=null?pp.value.toFixed(1)+'%':''}
+        }]
+      };
+    }
+    setOpt('coreDetailChartInd', ratioChartOpt(indChartData, indCoreTot));
+    setOpt('coreDetailChartComp', ratioChartOpt(compChartData, compCoreTot));
+
+    // ---- 表格：核心资本构成（2026Q1）四列：公司金额/公司占比/行业金额/行业占比 ----
+    const tk='2026Q1';
     const tblEl=document.getElementById('coreDetailTable');
     const fmtV=v=>(v==null||isNaN(v))?'<span style="color:#9aa7b5">—</span>':yi(v);
+    const iC1=sumIndustry('core1',tk), iC2=sumIndustry('core2',tk), iCore=iC1+iC2;
+    const cC1=companyVal('core1',tk), cC2=companyVal('core2',tk), cCore=(cC1||0)+(cC2||0);
     const rows=[];
-    // 核心一级 header
-    rows.push('<tr style="background:#eaf0fa;font-weight:700"><td colspan="4">核心一级资本</td></tr>');
+    // 核心一级
+    rows.push('<tr style="background:#eaf0fa;font-weight:700"><td colspan="5">核心一级资本</td></tr>');
     for(const item of C1_ITEMS){
-      const iv=sumIndustry(item[2],latestK);
-      const cv=companyVal(item[2],latestK);
-      rows.push(`<tr><td>${item[1]}</td><td class="ar">${fmtV(iv)}</td><td class="ar">${ent?fmtV(cv):'—'}</td><td class="ar">${cv!=null&&iv?(cv/iv*100).toFixed(1)+'%':'—'}</td></tr>`);
+      const iv=sumIndustry(item[2],tk);
+      const cv=companyVal(item[2],tk);
+      rows.push(`<tr><td>${item[1]}</td>`+
+        `<td class="ar">${ent?fmtV(cv):'—'}</td>`+
+        `<td class="ar">${ent&&cCore&&cv!=null?(cv/cCore*100).toFixed(1)+'%':'—'}</td>`+
+        `<td class="ar">${fmtV(iv)}</td>`+
+        `<td class="ar">${iCore?(iv/iCore*100).toFixed(1)+'%':'—'}</td></tr>`);
     }
-    // 核心一级小计
-    const c1total=sumIndustry('core1',latestK);
-    const c1comp=companyVal('core1',latestK);
-    rows.push(`<tr style="background:#f0f4ff;font-weight:600"><td>核心一级资本合计</td><td class="ar">${fmtV(c1total)}</td><td class="ar">${ent?fmtV(c1comp):'—'}</td><td class="ar">${c1comp!=null?(c1comp/c1total*100).toFixed(1)+'%':'—'}</td></tr>`);
-    // 核心二级 header
-    rows.push('<tr style="background:#e8faf0;font-weight:700"><td colspan="4">核心二级资本</td></tr>');
+    rows.push(`<tr style="background:#f0f4ff;font-weight:600"><td>核心一级资本合计</td>`+
+      `<td class="ar">${ent?fmtV(cC1):'—'}</td>`+
+      `<td class="ar">${ent&&cCore&&cC1!=null?(cC1/cCore*100).toFixed(1)+'%':'—'}</td>`+
+      `<td class="ar">${fmtV(iC1)}</td>`+
+      `<td class="ar">${iCore?(iC1/iCore*100).toFixed(1)+'%':'—'}</td></tr>`);
+    // 核心二级
+    rows.push('<tr style="background:#e8faf0;font-weight:700"><td colspan="5">核心二级资本</td></tr>');
     for(const item of C2_ITEMS){
-      const iv=sumIndustry(item[2],latestK);
-      const cv=companyVal(item[2],latestK);
-      rows.push(`<tr><td>${item[1]}</td><td class="ar">${fmtV(iv)}</td><td class="ar">${ent?fmtV(cv):'—'}</td><td class="ar">${cv!=null&&iv?(cv/iv*100).toFixed(1)+'%':'—'}</td></tr>`);
+      const iv=sumIndustry(item[2],tk);
+      const cv=companyVal(item[2],tk);
+      rows.push(`<tr><td>${item[1]}</td>`+
+        `<td class="ar">${ent?fmtV(cv):'—'}</td>`+
+        `<td class="ar">${ent&&cCore&&cv!=null?(cv/cCore*100).toFixed(1)+'%':'—'}</td>`+
+        `<td class="ar">${fmtV(iv)}</td>`+
+        `<td class="ar">${iCore?(iv/iCore*100).toFixed(1)+'%':'—'}</td></tr>`);
     }
-    const c2total=sumIndustry('core2',latestK);
-    const c2comp=companyVal('core2',latestK);
-    rows.push(`<tr style="background:#f0fff4;font-weight:600"><td>核心二级资本合计</td><td class="ar">${fmtV(c2total)}</td><td class="ar">${ent?fmtV(c2comp):'—'}</td><td class="ar">${c2comp!=null?(c2comp/c2total*100).toFixed(1)+'%':'—'}</td></tr>`);
+    rows.push(`<tr style="background:#f0fff4;font-weight:600"><td>核心二级资本合计</td>`+
+      `<td class="ar">${ent?fmtV(cC2):'—'}</td>`+
+      `<td class="ar">${ent&&cCore&&cC2!=null?(cC2/cCore*100).toFixed(1)+'%':'—'}</td>`+
+      `<td class="ar">${fmtV(iC2)}</td>`+
+      `<td class="ar">${iCore?(iC2/iCore*100).toFixed(1)+'%':'—'}</td></tr>`);
     // 核心资本合计
-    const coreTotal=c1total+c2total;
-    const coreComp=(c1comp||0)+(c2comp||0);
-    rows.push(`<tr style="background:#fff8e1;font-weight:700"><td>核心资本合计（一级+二级）</td><td class="ar">${fmtV(coreTotal)}</td><td class="ar">${ent?fmtV(coreComp):'—'}</td><td class="ar">${coreComp?(coreComp/coreTotal*100).toFixed(1)+'%':'—'}</td></tr>`);
+    rows.push(`<tr style="background:#fff8e1;font-weight:700"><td>核心资本合计（一级+二级）</td>`+
+      `<td class="ar">${ent?fmtV(cCore):'—'}</td>`+
+      `<td class="ar">100.0%</td>`+
+      `<td class="ar">${fmtV(iCore)}</td>`+
+      `<td class="ar">100.0%</td></tr>`);
 
-    tblEl.innerHTML='<table style="width:100%;border-collapse:collapse"><thead><tr><th>项目</th><th class="ar">行业金额</th>'+
-      (ent?`<th class="ar">${ent}金额</th><th class="ar">公司/行业</th>`:'<th class="ar">公司金额</th><th class="ar">公司/行业</th>')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table>';
+    tblEl.innerHTML='<table style="width:100%;border-collapse:collapse"><thead><tr>'+
+      '<th>项目</th>'+
+      (ent?`<th class="ar">${ent}金额</th>`:'<th class="ar">公司金额</th>')+
+      '<th class="ar">公司占比</th>'+
+      '<th class="ar">行业金额</th>'+
+      '<th class="ar">行业占比</th>'+
+      '</tr></thead><tbody>'+rows.join('')+'</tbody></table>';
   }
 
   // ===== 净资产占比走势（人身险专属）=====
