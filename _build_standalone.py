@@ -14,6 +14,7 @@ echarts = read("echarts.min.js")
 datajs = read("data.js")
 regjs = read("reg_industry.js")
 comparejs = read("compare_config.js")
+capdetailjs = read("life_capital_detail.js")
 appjs = read("app.js")
 
 import re
@@ -35,6 +36,7 @@ inline('echarts.min.js', echarts)
 inline('data.js', datajs)
 inline('reg_industry.js', regjs)
 inline('compare_config.js', comparejs)
+inline('life_capital_detail.js', capdetailjs)
 inline('app.js', appjs)
 
 with io.open(OUT, "w", encoding="utf-8") as f:
@@ -44,7 +46,7 @@ size_kb = os.path.getsize(OUT) / 1024
 print("OK 生成:", OUT)
 print("大小: %.0f KB (%.2f MB)" % (size_kb, size_kb / 1024))
 # 校验：不应再残留外部 src 引用
-for tag in ['echarts.min.js', 'data.js', 'reg_industry.js', 'compare_config.js', 'app.js']:
+for tag in ['echarts.min.js', 'data.js', 'reg_industry.js', 'compare_config.js', 'life_capital_detail.js', 'app.js']:
     if ('src="' + tag) in html:
         print("!! 警告：仍残留外部引用", tag)
     else:

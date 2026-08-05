@@ -821,6 +821,204 @@
       ]
     });
   }
+
+  // ===== 核心资本明细拆分（人身险专属，基于 LIFE_CAP_DETAIL）=====
+  function renderCoreDetail(k){
+    const panel=document.getElementById('lifeCapDetailPanel');
+    if(!panel) return;
+    // 仅人身险板块显示
+    if(S.seg!=='life'){ panel.style.display='none'; return; }
+    panel.style.display='';
+    if(typeof LIFE_CAP_DETAIL==='undefined'){ panel.innerHTML='<p style="color:#999;padding:20px">明细数据未加载</p>'; return; }
+
+    const LCD=LIFE_CAP_DETAIL;
+    const periods=LCD.periods;
+    const ent=S.riskEntity;
+
+    // 核心一级子项定义：[短名, 全名, 字段key, 颜色]
+    const C1_ITEMS=[
+      ['净资产','净资产','net','#2f6fed'],
+      ['非认可资产','各项非认可资产的账面价值','adj_nonrec','#e74c3c'],
+      ['长期股权投资差额','长期股权投资的认可价值与账面价值的差额','adj_lti','#f39c12'],
+      ['投资性房地产增值','投资性房地产公允价值增值','adj_invprop','#9b59b6'],
+      ['递延所得税资产','递延所得税资产(经营性亏损除外)','adj_dta','#1abc9c'],
+      ['大灾准备金','对农业保险提取的大灾风险准备金','adj_cat','#34495e'],
+      ['保单未来盈余','计入核心一级资本的保单未来盈余','adj_fvs','#27ae60'],
+      ['负债类工具','符合核心一级标准的负债类资本工具','adj_liab','#e67e22'],
+      ['其他调整','银保监会规定的其他调整项目','adj_other','#95a5a6'],
+    ];
+    // 核心二级子项
+    const C2_ITEMS=[
+      ['优先股','优先股','c2_pref','#16a085'],
+      ['保单未来盈余','计入核心二级资本的保单未来盈余','c2_fvm','#2980b9'],
+      ['其他核心二级','其他核心二级资本','c2_oth','#8e44ad'],
+      ['减:超限额扣除','减：超限额应扣除的部分','c2_ded','#c0392b'],
+    ];
+
+    // ---- 图表：核心资本构成堆叠柱状图（最新期行业汇总 + 所选公司）----
+    function sumIndustry(metric, pk){
+      let s=0;
+      for(const c of LCD.companies){
+        const r=LCD.data[c]&&LCD.data[c][pk];
+        if(r&&r[metric]!=null) s+=r[metric];
+      }
+      return s;
+    }
+    function companyVal(metric, pk){
+      if(!ent||!LCD.data[ent]) return null;
+      const r=LCD.data[ent][pk];
+      return r?r[metric]:null;
+    }
+
+    const kIdx=periods.indexOf(k);
+    const latestK=kIdx>=0?k:periods[periods.length-1];
+
+    // 行业数据
+    const indC1=C1_ITEMS.map(item=>({name:item[0], val:sumIndustry(item[2],latestK), color:item[3]}));
+    const indC2=C2_ITEMS.map(item=>({name:item[0], val:sumIndustry(item[2],latestK), color:item[3]}));
+    // 公司数据
+    const compC1=C1_ITEMS.map(item=>({name:item[0], val:companyVal(item[2],latestK), color:item[3]}));
+    const compC2=C2_ITEMS.map(item=>({name:item[0], val:companyVal(item[2],latestK), color:item[3]}));
+
+    const allItems=[...indC1,...indC2];
+    const allComp=[...compC1,...compC2];
+
+    setOpt('coreDetailChart',{
+      tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:v=>v==null?'—':(v/10000).toFixed(1)+' 亿'},
+      legend:{data:['行业汇总', ent||'未选公司'],top:0},
+      grid:{left:100,right:30,top:40,bottom:50},
+      xAxis:{type:'value',name:'亿元',axisLabel:{formatter:v=>(v/10000).toFixed(0)}},
+      yAxis:{type:'category',data:allItems.map(i=>i.name),axisLabel:{fontSize:11}},
+      series:[
+        {name:'行业汇总',type:'bar',data:allItems.map(i=>i.val),itemStyle:{color:params=>allItems[params.dataIndex].color},label:{show:true,position:'right',fontSize:10,formatter:p=>p.value!=null?(p.value/10000).toFixed(0):''}},
+        {name:ent||'未选公司',type:'bar',data:allComp.map(i=>i.val),itemStyle:{color:'#cfd8dc',opacity:.7},label:{show:true,position:'right',fontSize:10,formatter:p=>p.value!=null?(p.value/10000).toFixed(0):''}}
+      ]
+    });
+
+    // ---- 表格：核心资本构成明细 ----
+    const ttl=document.getElementById('coreDetailTblTitle');
+    if(ttl) ttl.textContent='核心资本构成（'+KEY2PERIOD[latestK].label+'）';
+    const tblEl=document.getElementById('coreDetailTable');
+    const fmtV=v=>(v==null||isNaN(v))?'<span style="color:#9aa7b5">—</span>':yi(v);
+    const rows=[];
+    // 核心一级 header
+    rows.push('<tr style="background:#eaf0fa;font-weight:700"><td colspan="4">核心一级资本</td></tr>');
+    for(const item of C1_ITEMS){
+      const iv=sumIndustry(item[2],latestK);
+      const cv=companyVal(item[2],latestK);
+      rows.push(`<tr><td>${item[1]}</td><td class="ar">${fmtV(iv)}</td><td class="ar">${ent?fmtV(cv):'—'}</td><td class="ar">${cv!=null&&iv?(cv/iv*100).toFixed(1)+'%':'—'}</td></tr>`);
+    }
+    // 核心一级小计
+    const c1total=sumIndustry('core1',latestK);
+    const c1comp=companyVal('core1',latestK);
+    rows.push(`<tr style="background:#f0f4ff;font-weight:600"><td>核心一级资本合计</td><td class="ar">${fmtV(c1total)}</td><td class="ar">${ent?fmtV(c1comp):'—'}</td><td class="ar">${c1comp!=null?(c1comp/c1total*100).toFixed(1)+'%':'—'}</td></tr>`);
+    // 核心二级 header
+    rows.push('<tr style="background:#e8faf0;font-weight:700"><td colspan="4">核心二级资本</td></tr>');
+    for(const item of C2_ITEMS){
+      const iv=sumIndustry(item[2],latestK);
+      const cv=companyVal(item[2],latestK);
+      rows.push(`<tr><td>${item[1]}</td><td class="ar">${fmtV(iv)}</td><td class="ar">${ent?fmtV(cv):'—'}</td><td class="ar">${cv!=null&&iv?(cv/iv*100).toFixed(1)+'%':'—'}</td></tr>`);
+    }
+    const c2total=sumIndustry('core2',latestK);
+    const c2comp=companyVal('core2',latestK);
+    rows.push(`<tr style="background:#f0fff4;font-weight:600"><td>核心二级资本合计</td><td class="ar">${fmtV(c2total)}</td><td class="ar">${ent?fmtV(c2comp):'—'}</td><td class="ar">${c2comp!=null?(c2comp/c2total*100).toFixed(1)+'%':'—'}</td></tr>`);
+    // 核心资本合计
+    const coreTotal=c1total+c2total;
+    const coreComp=(c1comp||0)+(c2comp||0);
+    rows.push(`<tr style="background:#fff8e1;font-weight:700"><td>核心资本合计（一级+二级）</td><td class="ar">${fmtV(coreTotal)}</td><td class="ar">${ent?fmtV(coreComp):'—'}</td><td class="ar">${coreComp?(coreComp/coreTotal*100).toFixed(1)+'%':'—'}</td></tr>`);
+
+    tblEl.innerHTML='<table style="width:100%;border-collapse:collapse"><thead><tr><th>项目</th><th class="ar">行业金额</th>'+
+      (ent?`<th class="ar">${ent}金额</th><th class="ar">公司/行业</th>`:'<th class="ar">公司金额</th><th class="ar">公司/行业</th>')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table>';
+  }
+
+  // ===== 净资产占比走势（人身险专属）=====
+  function renderNetAssetRatio(){
+    const chartEl=document.getElementById('netAssetRatioChart');
+    if(!chartEl) return;
+    if(S.seg!=='life'||typeof LIFE_CAP_DETAIL==='undefined'){ chartEl.style.display='none'; return; }
+    chartEl.style.display='';
+
+    const LCD=LIFE_CAP_DETAIL;
+    const periods=LCD.periods;
+    const labels=periods.map(p=>{
+      const map={'2022Q1':'22Q1','2022Q2':'22Q2','2022Q3':'22Q3','2022Q4':'22Q4',
+                '2023Q1':'23Q1','2023Q2':'23Q2','2023Q3':'23Q3','2023Q4':'23Q4',
+                '2024Q1':'24Q1','2024Q2':'24Q2','2024Q3':'24Q3','2024Q4':'24Q4',
+                '2025Q1':'25Q1','2025Q2':'25Q2','2025Q3':'25Q3','2025Q4':'25Q4',
+                '2026Q1':'26Q1'};
+      return map[p]||p;
+    });
+
+    function sumInd(m){
+      let s=0;
+      for(const c of LCD.companies){
+        const r=LCD.data[c]&&LCD.data[c][m];
+        if(r){
+          const n=r['net'];const c1=r['core1'];const c2=r['core2'];const tot=r['total'];
+          if(n!=null&&c1!=null&&c2!=null&&tot!=null) s+=n;
+        }
+      }
+      return s;
+    }
+
+    // 行业整体两条线
+    const indRatioCore=periods.map(p=>{
+      let netSum=0,coreSum=0,n=0;
+      for(const c of LCD.companies){
+        const r=LCD.data[c]&&LCD.data[c][p]; if(!r) continue;
+        if(r.net!=null&&(r.core1!=null||r.core2!=null)){
+          netSum+=r.net; coreSum+=(r.core1||0)+(r.core2||0); n++;
+        }
+      }
+      return coreSum>0?netSum/coreSum*100:null;
+    });
+    const indRatioAct=periods.map(p=>{
+      let netSum=0,totSum=0;
+      for(const c of LCD.companies){
+        const r=LCD.data[c]&&LCD.data[c][p]; if(!r) continue;
+        if(r.net!=null&&r.total!=null){ netSum+=r.net; totSum+=r.total; }
+      }
+      return totSum>0?netSum/totSum*100:null;
+    });
+
+    // 所选公司两条线
+    const ent=S.riskEntity;
+    const compRatioCore=periods.map(p=>{
+      if(!ent||!LCD.data[ent]) return null;
+      const r=LCD.data[ent][p]; if(!r) return null;
+      const core=(r.core1||0)+(r.core2||0);
+      return (r.net!=null&&core>0)?r.net/core*100:null;
+    });
+    const compRatioAct=periods.map(p=>{
+      if(!ent||!LCD.data[ent]) return null;
+      const r=LCD.data[ent][p]; if(!r) return null;
+      return (r.net!=null&&r.total&&r.total>0)?r.net/r.total*100:null;
+    });
+
+    setOpt('netAssetRatioChart',{
+      tooltip:{trigger:'axis',axisPointer:{type:'cross'},
+        formatter:function(params){
+          if(!params||!params.length) return '';
+          let h='<b>'+params[0].axisValue+'</b>';
+          for(const p of params)
+            if(p.seriesType==='line') h+='<br/>'+p.marker+p.seriesName+': '+(p.value!=null?p.value.toFixed(2)+'%':'—');
+          return h;
+        }
+      },
+      legend:{data:['行业·净资产/核心资本','行业·净资产/实际资本',(ent||'')+'·净资产/核心资本',(ent||'')+'·净资产/实际资本'].filter(Boolean),top:0,textStyle:{fontSize:10}},
+      grid:{left:60,right:60,top:48,bottom:45},
+      xAxis:{type:'category',data:labels,axisLabel:{rotate:35,fontSize:10}},
+      yAxis:[{type:'value',name:'净资产/核心资本 %',min:0,axisLabel:{formatter:v=>v.toFixed(0)+'%'}},
+              {type:'value',name:'净资产/实际资本 %',min:0,axisLabel:{formatter:v=>v.toFixed(0)+'%'}}],
+      series:[
+        {name:'行业·净资产/核心资本',type:'line',data:indRatioCore,smooth:true,itemStyle:{color:'#2f6fed'},lineStyle:{width:2.2},symbol:'circle',symbolSize:4},
+        {name:'行业·净资产/实际资本',type:'line',data:indRatioAct,smooth:true,itemStyle:{color:'#16a085'},lineStyle:{width:2.2},symbol:'diamond',symbolSize:4,yAxisIndex:1},
+        ...(ent?[{name:ent+'·净资产/核心资本',type:'line',data:compRatioCore,smooth:true,itemStyle:{color:'#e67e22'},lineStyle:{width:2,dashType:[5,3]},symbol:'triangle',symbolSize:5},
+               {name:ent+'·净资产/实际资本',type:'line',data:compRatioAct,smooth:true,itemStyle:{color:'#c0392b'},lineStyle:{width:2,dashType:[5,3]},symbol:'triangleSymbol',symbolSize:5,yAxisIndex:1}]:[])
+      ]
+    });
+  }
+
   function renderRisk(){
     const k=S.riskPeriod;
     const hasMc = !!(D.segments[S.seg] && D.segments[S.seg].mcDetail && Object.keys(D.segments[S.seg].mcDetail).length);
@@ -851,6 +1049,9 @@
       renderEquityTrendCompany();
       renderEquityCmp2(k);
       renderEquityPieCmp(k);
+      // 人身险专属：核心资本明细拆分 + 净资产占比
+      renderCoreDetail(k);
+      renderNetAssetRatio();
     }
   }
 

@@ -347,6 +347,24 @@
             <div id="equityPieCmp" class="chart" style="height:320px"></div>
           </div>
         </div>
+
+        <!-- 核心资本明细拆分 + 净资产占比（人身险专属） -->
+        <div id="lifeCapDetailPanel" style="margin-top:18px">
+          <div class="grid2" style="margin-top:10px">
+            <div class="card"><h3>核心资本明细拆分（核心一级+核心二级）</h3>
+              <p class="hint" style="font-size:11.5px;margin-bottom:8px">核心资本 = 核心一级(净资产+调整额8子项) + 核心二级(优先股+保单未来盈余+其他-超限额扣除)。数据来源：监管披露实际资本明细表。</p>
+              <div id="coreDetailChart" class="chart" style="height:340px"></div>
+            </div>
+            <div class="card"><h3 id="coreDetailTblTitle">核心资本构成（2026年第1季度）</h3>
+              <div id="coreDetailTable" style="font-size:11.5px;line-height:1.65;max-height:360px;overflow:auto"></div>
+            </div>
+          </div>
+          <div class="card" style="margin-top:14px">
+            <h3>净资产占比走势（净资产/核心资本 & 净资产/实际资本）</h3>
+            <p class="hint" style="font-size:11.5px;margin-bottom:8px">蓝线=行业整体，橙线=所选公司。左Y轴=净资产占核心资本比例(%)，右Y轴=净资产占实际资本比例(%)。</p>
+            <div id="netAssetRatioChart" class="chart" style="height:340px"></div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -494,7 +512,8 @@
 
 <div class="footer">保险行业偿付能力分析平台 · 纯静态前端 · 数据内联，可离线使用</div>
 
-<script src="compare_config.js"></script>
-<script src="app.js?v=20260804"></script>
+      <script src="compare_config.js"></script>
+      <script src="life_capital_detail.js?v=20260805"></script>
+      <script src="app.js?v=20260805"></script>
 </body>
 </html>
