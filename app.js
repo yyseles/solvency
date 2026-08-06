@@ -1585,8 +1585,9 @@
       return !entityCompanyNames.has(c);
     });
 
-    // 综合放一起、核心放一起（不再输出【综合】【核心】标题行）
+    // 综合放一起、核心放一起（每段输出指标名标题行）
     zhMetrics.forEach((metric, mi) => {
+      h += '<tr class="blk"><td colspan="'+(revPeriods.length+1)+'">'+metric+'</td></tr>';
 
       // 实体行（含资本子行）
       S.entities.forEach(ent=>{
