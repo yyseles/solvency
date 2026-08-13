@@ -882,7 +882,7 @@ let LIFE_CAP_DETAIL = {"companies": ["爱心人寿", "安联人寿", "百年人�
       kpi3('综合偿付能力充足率',pct(wC),[...regC,['中位',pct(medC)],['算数平均',pct(meanC)]],colorFor(wC,1.0)),
       kpi3('核心偿付能力充足率',pct(wD),[...regD,['中位',pct(medD)],['算数平均',pct(meanD)]],colorFor(wD,0.5)),
       kpi('行业达标率',(rate*100).toFixed(1)+'%', `达标 ${comp} / 已披露 ${disclosed} 家（未披露 ${nodata} 家单列）`, rate>=0.95?'#27ae60':'#e67e22'),
-      kpi('风险公司数',risk+' 家', `综合<100% 或 核心<50%（不达标），含未披露 ${nodata} 家`, risk===0?'#27ae60':'#e74c3c'),
+      kpi('风险公司数（含未披露公司）',risk+' 家', `综合<100% 或 核心<50%（不达标），含未披露 ${nodata} 家`, risk===0?'#27ae60':'#e74c3c'),
     ].join('');
     trendLineChart('ovC','C',sl,1.0);
     trendLineChart('ovD','D',sl,0.5);
@@ -890,13 +890,13 @@ let LIFE_CAP_DETAIL = {"companies": ["爱心人寿", "安联人寿", "百年人�
     const rates=sl.map(k=>{let c=0,d=0;for(const cc of COMPS){const st=statusOf(cc,k);if(st==='ok')c++;else if(st==='bad')d++;}const disc=c+d;return disc?+(c/disc*100).toFixed(1):0;});
     const bads=sl.map(k=>{let b=0;for(const cc of COMPS){const st=statusOf(cc,k); if(st==='bad'||st==='nodata')b++;}return b;});
     setOpt('ovComp',{
-      tooltip:{trigger:'axis'}, legend:{data:['达标率%','风险公司数'],top:0},
+      tooltip:{trigger:'axis'}, legend:{data:['达标率%','风险公司数（含未披露公司）'],top:0},
       grid:{left:50,right:55,top:35,bottom:30},
       xAxis:{type:'category',data:labels,axisLabel:{rotate:35}},
       yAxis:[{type:'value',name:'达标率%',max:100,min:0},{type:'value',name:'家',min:0}],
       series:[
         {name:'达标率%',type:'line',smooth:true,data:rates,areaStyle:{opacity:.12},itemStyle:{color:'#27ae60'},lineStyle:{width:2.5}},
-        {name:'风险公司数',type:'bar',yAxisIndex:1,data:bads,itemStyle:{color:'#e74c3c',opacity:.7}}
+        {name:'风险公司数（含未披露公司）',type:'bar',yAxisIndex:1,data:bads,itemStyle:{color:'#e74c3c',opacity:.7}}
       ]
     });
   }
