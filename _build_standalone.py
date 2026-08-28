@@ -2,7 +2,7 @@
 """把偿付能力分析平台打包成单个自包含 HTML（所有 js/css/data 内联），便于转发。"""
 import io, sys, os
 
-SRC_DIR = r"C:\Users\yangyang05-ghq\Desktop\wb\solvency"
+SRC_DIR = r"D:\wb\solvency"
 OUT = os.path.join(SRC_DIR, "偿付能力分析平台_可转发.html")
 
 def read(p):
