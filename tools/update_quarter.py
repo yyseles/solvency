@@ -3,8 +3,12 @@
 单季度数据更新一键脚本（覆盖全数据产物，替代手工逐项编辑）。
 
 设计要点：
-  * 按“修订号”(--rev，默认 0831)在地端 data/ 下定位源文件：只处理文件名含 rev 的文件，
-    从而精确对应本次提供的若干张表（没有给新文件的板块自动跳过，不会误用旧 .xlsx）。
+  * 【自动模式（默认）】扫描 data/ 目录下所有 .xlsx/.xls，从文件名自动识别
+    「板块类型 + 期次 + 修订号」，批量更新所有能识别的文件；同一板块同期次
+    若有多个修订版，只取修订号最大的一份。无期次标记的旧历史文件自动跳过，
+    绝不误伤。这样每次季度更新只需两步：把新 Excel 拖进 data/ → 跑一条命令。
+  * 手动模式：--rev / --quarter 指定修订号与期次，只处理文件名含 rev 的文件
+    （老行为，兼容）。
   * 默认 --overwrite：用源文件里该季度的值【覆盖】目标公司在 data 中的对应期次记录
     （仅覆盖该季度、仅覆盖源文件中出现的公司，绝不触碰其它期次/其它公司）。
   * 加法安全：即便带 --overwrite，也不会删除任何历史期次或无关公司。
@@ -14,9 +18,11 @@
 覆盖产物：data.js / reg_industry.js / life_capital_detail.js / property_capital_detail.js
 
 用法：
-  python tools/update_quarter.py                       # 仅更新数据（默认 rev=0831, overwrite）
-  python tools/update_quarter.py --rev 0831 --dry     # 不写文件，打印将更新条数
-  python tools/update_quarter.py --deploy             # 数据更新 + 同步 dist + 构建单文件 + git 推送 + curl 校验
+  python tools/update_quarter.py                       # 自动模式：扫描 data/ 全部新文件并更新
+  python tools/update_quarter.py --dry                # 只打印将处理的文件与条数，不写文件
+  python tools/update_quarter.py --rev 0831           # 手动模式：只处理文件名含 0831 的文件
+  python tools/update_quarter.py --quarter 2026Q2     # 手动模式：指定目标期次
+  python tools/update_quarter.py --deploy             # 更新 + 同步 dist + 构建单文件 + git 推送 + curl 校验
   python tools/update_quarter.py --no-overwrite       # 仅填补缺失（已有则跳过），不覆盖
 """
 import argparse, json, os, re, shutil, subprocess, sys, glob
@@ -112,6 +118,8 @@ def period_def(key):
 
 def rev_files(base, rev):
     """在 data/ 下找 base*.xlsx，只返回文件名含 rev 的（按尾部数字取最大）。无则返回 None。"""
+    if not rev:
+        return None
     cands = glob.glob(os.path.join(DATA, base + "*.xlsx"))
     pref = [c for c in cands if rev in os.path.basename(c)]
     if not pref:
@@ -329,7 +337,7 @@ def save_js(path, var, obj, header, dry):
 
 
 # ============================================================
-def upsert_datajs(quarter, rev, dry, overwrite):
+def upsert_datajs(quarter, rev, dry, overwrite, paths=None):
     print("=== data.js（偿付能力主表）===")
     var, D, header = load_js(DATA_JS)
     pdef = period_def(quarter)
@@ -337,9 +345,9 @@ def upsert_datajs(quarter, rev, dry, overwrite):
              "property": "产险偿付能力", "reins": "再保偿付能力"}
     changed = False
     for seg, base in files.items():
-        p = rev_files(base, rev)
+        p = (paths or {}).get(seg) or rev_files(base, rev)
         if not p:
-            print(f"  [SKIP] 无 {rev} 源文件: {base}")
+            print(f"  [SKIP] 无源文件: {base}")
             continue
         recs = read_solvency(p)
         segobj = D["segments"][seg]
@@ -374,44 +382,47 @@ def upsert_datajs(quarter, rev, dry, overwrite):
         print("  data.js 无变更，跳过写文件")
 
 
-def upsert_reg(quarter, rev, dry):
-    print("=== reg_industry.js（监管行业平均）===")
+def upsert_reg(quarter, rev, dry, quiet=False):
+    if not quiet:
+        print("=== reg_industry.js（监管行业平均）===")
     import glob as _glob
     yr = quarter[:4]
     cands = _glob.glob(os.path.join(DATA, "*监管披露行业偿付能力水平*.xls"))
     cands.sort(key=lambda x: (0 if yr in os.path.basename(x) else 1, x))
     p = cands[0] if cands else None
     if not p:
-        print("  [SKIP] 未找到监管披露行业偿付能力水平*.xls")
+        if not quiet:
+            print("  [SKIP] 未找到监管披露行业偿付能力水平*.xls")
         return
     recs = read_reg_xls(p, quarter)
     if not recs:
-        print(f"  [SKIP] {os.path.basename(p)} 中无 {quarter} 数据")
+        if not quiet:
+            print(f"  [SKIP] {os.path.basename(p)} 中无 {quarter} 数据")
         return
     var, R, header = load_js(REG_JS)
     n = 0
     for seg, cd in recs.items():
         if quarter in R["data"].get(seg, {}) and R["data"][seg][quarter]:
-            print(f"  [跳过] {seg}/{quarter} 已有数据")
             continue
         R["data"].setdefault(seg, {})[quarter] = cd
         n += 1
-        print(f"  {seg}: C={cd.get('C')} D={cd.get('D')}")
+        if not quiet:
+            print(f"  {seg}: C={cd.get('C')} D={cd.get('D')}")
     if n > 0 and not dry:
         save_js(REG_JS, var, R, header, dry)
-    elif dry:
+    elif dry and n > 0:
         save_js(REG_JS, var, R, header, dry)
-    else:
+    elif not quiet:
         print("  reg_industry.js 无变更，跳过写文件")
 
 
-def upsert_capital(quarter, rev, dry, overwrite):
+def upsert_capital(quarter, rev, dry, overwrite, paths=None):
     print("=== 实际资本明细 ===")
     for seg, base, js_path in [("life", "人身险实际资本", LIFE_CAP_JS),
                                ("property", "产险实际资本", PROP_CAP_JS)]:
-        p = rev_files(base, rev)
+        p = (paths or {}).get(seg) or rev_files(base, rev)
         if not p:
-            print(f"  [SKIP] 无 {rev} 源文件: {base}")
+            print(f"  [SKIP] 无源文件: {base}")
             continue
         recs = read_capital(p)
         var, CAP, header = load_js(js_path)
@@ -447,15 +458,15 @@ def upsert_capital(quarter, rev, dry, overwrite):
         print(f"  {seg}: 新增 {n_new} / 覆盖 {n_ovw} / 跳过 {n_skip}  (源 {len(recs)} 家, {os.path.basename(p)})")
 
 
-def upsert_mc(quarter, rev, dry, overwrite):
+def upsert_mc(quarter, rev, dry, overwrite, paths=None):
     print("=== 最低资本明细 (P~V+N + mcDetail 下钻) ===")
     mc_bases = {"life": "人身险最低资本", "property": "产险最低资本", "reins": "再保最低资本"}
     var, D, header = load_js(DATA_JS)
     changed = False
     for seg, base in mc_bases.items():
-        p = rev_files(base, rev)
+        p = (paths or {}).get(seg) or rev_files(base, rev)
         if not p:
-            print(f"  [SKIP] 无 {rev} 源文件: {base}")
+            print(f"  [SKIP] 无源文件: {base}")
             continue
         recs = read_mc_excel(p)  # {comp: {period: {"agg":{P..N},"detail":{mcP_loss..}}}}}
         segobj = D["segments"][seg]
@@ -528,23 +539,155 @@ def deploy(quarter):
             print("  [WARN] 在线校验失败:", e)
 
 
+# ============================================================
+# 自动发现：扫描 data/ 下源文件，按文件名识别 板块类型+期次+修订号
+# ============================================================
+# 文件名前缀 -> (类型, 参数)
+# 类型: solvency(偿付能力主表,data.js) / capital(实际资本明细) / mc(最低资本明细) / reg(监管披露)
+AUTO_RULES = [
+    ("集团偿付能力", "solvency", "group"),
+    ("人身险偿付能力", "solvency", "life"),
+    ("产险偿付能力", "solvency", "property"),
+    ("再保偿付能力", "solvency", "reins"),
+    ("人身险实际资本", "capital", "life"),
+    ("产险实际资本", "capital", "property"),
+    ("人身险最低资本", "mc", "life"),
+    ("产险最低资本", "mc", "property"),
+    ("再保最低资本", "mc", "reins"),
+]
+
+PERIOD_RE = [
+    re.compile(r"(\d{4})Q([1-4])", re.I),          # 2026Q2 / 2026q2
+    re.compile(r"(\d{4})年第?([1-4])季度?"),        # 2026年第2季度
+    re.compile(r"(\d{2})Q([1-4])"),                 # 26Q2
+    re.compile(r"(\d{2})年第?([1-4])季度?"),        # 26年第2季度
+]
+
+
+def parse_period_from_name(name):
+    """从文件名提取期次键（2026Q2 或 2026）。无则返回 None。"""
+    for rx in PERIOD_RE:
+        m = rx.search(name)
+        if m:
+            y = int(m.group(1))
+            if y < 100:
+                y += 2000
+            return f"{y}Q{m.group(2)}"
+    m = re.search(r"(\d{4})年", name)              # 仅年份（如 2026年监管披露…）
+    if m:
+        return m.group(1)
+    return None
+
+
+def rev_of(name):
+    """文件名尾部数字作为修订号（如 -0831 / 0831）。无则 0。"""
+    nums = re.findall(r"\d+", os.path.basename(name))
+    return int(nums[-1]) if nums else 0
+
+
+def discover_files(data_dir, default_quarter, rev_only=None):
+    """
+    扫描 data/ 返回待处理清单：
+      [{type, seg, quarter, rev, path}, ...]
+    自动模式：识别所有带期次的文件；同一 (type,seg,quarter) 取修订号最大的一份。
+    rev_only 指定时（手动模式）：只保留文件名含 rev_only 的文件。
+    """
+    tasks = []
+    for p in sorted(glob.glob(os.path.join(data_dir, "*.xlsx"))):
+        base = os.path.basename(p)
+        if base.startswith("~$"):
+            continue
+        matched = None
+        for prefix, typ, seg in AUTO_RULES:
+            if base.startswith(prefix):
+                matched = (typ, seg)
+                break
+        if not matched:
+            continue
+        if rev_only and rev_only not in base:
+            continue
+        q = parse_period_from_name(base)
+        rv = rev_of(p)
+        if not q:
+            # 无期次标记：带修订号(如 -0831/-0918)的新文件 → 用默认期次；
+            # 完全无修订号(纯文件名如“集团偿付能力.xlsx”) → 历史旧文件，跳过
+            if rv > 0:
+                q = default_quarter
+                if not rev_only:
+                    print(f"  [NOTE] 文件名无期次标记，按默认期次 {default_quarter} 处理: {base}")
+            else:
+                print(f"  [SKIP] 文件名无期次且无修订号(历史旧文件): {base}")
+                continue
+        tasks.append({"type": matched[0], "seg": matched[1],
+                      "quarter": q, "rev": rv, "path": p})
+    # 同 (type,seg,quarter) 只保留修订号最大的一份
+    best = {}
+    for t in tasks:
+        key = (t["type"], t["seg"], t["quarter"])
+        if key not in best or t["rev"] > best[key]["rev"]:
+            best[key] = t
+    tasks = list(best.values())
+    tasks.sort(key=lambda t: (t["type"], t["seg"], t["quarter"]))
+    return tasks
+
+
+def auto_run(quarter, dry, overwrite, do_deploy, rev_only=None):
+    """自动（或手动 rev）模式的统一入口：发现文件 → 按类型+期次分组 → 分发 → 汇总打印。"""
+    tasks = discover_files(DATA, quarter, rev_only)
+    if not tasks:
+        print("[WARN] 未发现任何可更新的源文件。请把新季度 Excel 放入 data/ 目录。")
+        return
+    print(f"发现 {len(tasks)} 个待处理源文件：")
+    for t in tasks:
+        print(f"  [{t['type']:8s}] {t['seg']:8s} {t['quarter']}  rev={t['rev']:<5d} {os.path.basename(t['path'])}")
+    print()
+
+    # 按 (type, quarter) 分组：同一组一次调用，每个源文件只读一遍
+    groups = {}
+    for t in tasks:
+        groups.setdefault((t["type"], t["quarter"]), {})[t["seg"]] = t["path"]
+
+    n_solv = n_cap = n_mc = 0
+    for (typ, q), segmap in sorted(groups.items()):
+        if typ == "solvency":
+            upsert_datajs(q, None, dry, overwrite, paths=segmap)
+            n_solv += 1
+        elif typ == "capital":
+            upsert_capital(q, None, dry, overwrite, paths=segmap)
+            n_cap += 1
+        elif typ == "mc":
+            upsert_mc(q, None, dry, overwrite, paths=segmap)
+            n_mc += 1
+        print()
+    # 监管披露：扫描全部年份 xls，对每份文件逐季度尝试入库（已有数据自动跳过）
+    import glob as _g
+    for p in sorted(_g.glob(os.path.join(DATA, "*监管披露行业偿付能力水平*.xls"))):
+        m = re.search(r"(20\d{2})年", os.path.basename(p))
+        if not m:
+            print(f"  [SKIP] 监管文件无法识别年份: {os.path.basename(p)}")
+            continue
+        yr = m.group(1)
+        for q in ["Q1", "Q2", "Q3", "Q4"]:
+            upsert_reg(f"{yr}{q}", None, dry, quiet=True)
+
+    print(f"处理完成：主表 {n_solv} 组 / 实际资本 {n_cap} 组 / 最低资本 {n_mc} 组。")
+    if do_deploy and not dry:
+        deploy(quarter)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--quarter", default="2026Q2")
-    ap.add_argument("--rev", default="0831")
+    ap.add_argument("--quarter", default="2026Q2",
+                    help="目标期次；自动模式下用作“文件名无期次标记”文件的默认期次")
+    ap.add_argument("--rev", default=None,
+                    help="手动模式：只处理文件名含该修订号的文件；缺省=自动扫描全部")
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("--deploy", action="store_true")
     ap.add_argument("--no-overwrite", dest="overwrite", action="store_false")
     ap.set_defaults(overwrite=True)
     args = ap.parse_args()
 
-    upsert_datajs(args.quarter, args.rev, args.dry, args.overwrite)
-    upsert_reg(args.quarter, args.rev, args.dry)
-    upsert_capital(args.quarter, args.rev, args.dry, args.overwrite)
-    upsert_mc(args.quarter, args.rev, args.dry, args.overwrite)
-    if args.deploy and not args.dry:
-        deploy(args.quarter)
-    print("\n完成。")
+    auto_run(args.quarter, args.dry, args.overwrite, args.deploy, rev_only=args.rev)
 
 
 if __name__ == "__main__":
