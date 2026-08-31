@@ -243,7 +243,7 @@
       <div class="card" style="padding-bottom:12px">
         <div class="row-ctl" style="margin-bottom:0">
           <span class="ctl" style="color:var(--sub)">公司：</span><select id="rankEvoSel"></select>
-          <span class="ctl" style="color:var(--sub);margin-left:6px;font-size:12px;color:#9aa7b5">（右图展示 综合 / 核心 两张）</span>
+          <span class="ctl" style="color:var(--sub);margin-left:6px;font-size:12px;color:#9aa7b5">（右图随左侧指标同步切换 综合 / 核心）</span>
         </div>
       </div>
       <!-- 第2行：图表（同一行 → 底部对齐） -->
@@ -322,6 +322,12 @@
                 <div class="seg" id="mcPieMode">
                   <button data-v="top" class="on">顶层</button>
                   <button data-v="sub">子风险</button>
+                </div>
+                <div class="seg" id="mcPieParent" style="display:none;margin-left:8px">
+                  <button data-v="life">寿险风险</button>
+                  <button data-v="nonlife">非寿风险</button>
+                  <button data-v="market" class="on">市场风险</button>
+                  <button data-v="credit">信用风险</button>
                 </div>
               </div>
               <div id="riskCapPieCmp" class="chart" style="height:320px"></div>

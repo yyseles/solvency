@@ -13,7 +13,7 @@
     rankMetric:'C', rankPeriod:null,
     riskEntity:null, riskInd:true, riskPeriod:null, capTab:'mc',
     equityForm:'tier',
-    mcPieMode:'top',
+    mcPieMode:'top', mcPieParent:'market',
     rankEvo:null,
     alertPeriod:null, alertFilter:'all',
     cmp:new Set(), focus:null
@@ -425,7 +425,11 @@
       series:[{type:'bar',data:vals.map((v,i)=>({value:v,itemStyle:{color:colors[i]}})),barWidth:'70%'}]
     });
     const tb=document.getElementById('rankTable');
-    document.getElementById('rankTableHdr').querySelector('thead').innerHTML='<tr><th>排名</th><th>公司</th><th>综合充足率</th><th>核心充足率</th><th>实际资本(亿)</th><th>最低资本(亿)</th><th>状态</th></tr>';
+    document.getElementById('rankTableHdr').querySelector('thead').innerHTML='<tr><th>排名</th><th>公司</th><th>综合充足率</th><th>核心充足率</th><th>综合排名</th><th>核心排名</th><th>实际资本(亿)</th><th>最低资本(亿)</th><th>状态</th></tr>';
+    // 计算综合排名（按 C 降序）、核心排名（按 D 降序）
+    const cRank={}, dRank={};
+    all.filter(x=>x.C!=null).slice().sort((a,b)=>b.C-a.C).forEach((x,i)=>cRank[x.c]=i+1);
+    all.filter(x=>x.D!=null).slice().sort((a,b)=>b.D-a.D).forEach((x,i)=>dRank[x.c]=i+1);
     const q=document.getElementById('rankSearch').value.trim();
     const frows=rows.filter(x=>!q||x.c.includes(q));
     tb.querySelector('tbody').innerHTML=frows.map(x=>{
@@ -435,7 +439,7 @@
       else if(x.C<1.2||x.D<0.6) stTag='<span class="tag warn">关注</span>';
       else stTag='<span class="tag ok">达标</span>';
       const rankNo = x.v!=null ? (disclosed.indexOf(x)+1) : '—';
-      return `<tr data-c="${x.c}"><td>${rankNo}</td><td>${x.c}</td><td>${pct(x.C)}</td><td>${pct(x.D)}</td><td>${x.I!=null?yi(x.I):'—'}</td><td>${x.N!=null?yi(x.N):'—'}</td><td>${stTag}</td></tr>`;
+      return `<tr data-c="${x.c}"><td>${rankNo}</td><td>${x.c}</td><td>${pct(x.C)}</td><td>${pct(x.D)}</td><td>${cRank[x.c]||'—'}</td><td>${dRank[x.c]||'—'}</td><td>${x.I!=null?yi(x.I):'—'}</td><td>${x.N!=null?yi(x.N):'—'}</td><td>${stTag}</td></tr>`;
     }).join('');
     tb.querySelectorAll('tbody tr').forEach(tr=>tr.onclick=()=>{
       tb.querySelectorAll('tbody tr').forEach(t=>t.style.background='');
@@ -473,12 +477,24 @@
   function renderRankEvo(){
     const c=S.rankEvo;
     if(!c){
-      setOpt('rankEvoC',{title:{text:'请选择公司',left:'center',top:'middle',textStyle:{color:'#999'}}});
-      setOpt('rankEvoD',{title:{text:'请选择公司',left:'center',top:'middle',textStyle:{color:'#999'}}});
+      const emptyOpt={title:{text:'请选择公司',left:'center',top:'middle',textStyle:{color:'#999'}}};
+      setOpt('rankEvoC',emptyOpt); setOpt('rankEvoD',emptyOpt);
+      document.getElementById('rankEvoC').parentElement.style.display='none';
+      document.getElementById('rankEvoD').parentElement.style.display='none';
       return;
     }
-    renderEvoChart('rankEvoC','C');   // 综合充足率 + 综合排名
-    renderEvoChart('rankEvoD','D');   // 核心充足率 + 核心排名
+    // 按 S.rankMetric 决定展示哪张图（C=综合/D=核心）；另一张隐藏
+    const cardC=document.getElementById('rankEvoC').parentElement;
+    const cardD=document.getElementById('rankEvoD').parentElement;
+    if(S.rankMetric==='D'){
+      cardC.style.display='none';
+      cardD.style.display='';
+      renderEvoChart('rankEvoD','D');
+    } else {
+      cardC.style.display='';
+      cardD.style.display='none';
+      renderEvoChart('rankEvoC','C');
+    }
     const field=S.rankMetric;
     const sl=tlSlice();
     const labels=sl.map(k=>KEY2PERIOD[k].label);
@@ -490,7 +506,8 @@
       return my==null? null : vals.indexOf(my)+1;
     });
     const tb=document.getElementById('rankEvoTable');
-    document.getElementById('rankEvoTableHdr').querySelector('thead').innerHTML='<tr><th>报告期</th><th>综合</th><th>核心</th><th>排名</th></tr>';
+    const rankHdr = field==='D' ? '核心排名' : '综合排名';
+    document.getElementById('rankEvoTableHdr').querySelector('thead').innerHTML=`<tr><th>报告期</th><th>综合</th><th>核心</th><th>${rankHdr}</th></tr>`;
     tb.querySelector('tbody').innerHTML=sl.map((k,i)=>`<tr><td>${labels[i]}</td><td>${pct(cv[i])}</td><td>${pct(dv[i])}</td><td>${rank[i]!=null?rank[i]+' / '+COMPS.length:'—'}</td></tr>`).join('');
   }
 
@@ -677,35 +694,31 @@
   // 最低资本：公司 vs 行业 占比对比（横向分组条形，百分数 2 位小数）
   function renderCapPieCmp(k){
     const ent=S.riskEntity;
+    // 子风险模式：根据 mcPieMode 切换父风险按钮组的可见性
+    const parentEl=document.getElementById('mcPieParent');
+    if(parentEl) parentEl.style.display = (S.mcPieMode==='sub') ? '' : 'none';
     let cats, compData, indData, colors;
     if(S.mcPieMode==='sub'){
-      // 子风险下钻：把 life/nonlife/market/credit 的明细项平铺
-      const subItems=[];
-      ['life','nonlife','market','credit'].forEach(subKey=>{
-        const cat=MC_CATS[subKey];
-        if(!cat) return;
-        const parent=MC_COMP.find(c=>c.sub===subKey);
-        cat.items.forEach(it=>{
-          subItems.push({key:it[0], name:it[1], parentColor:parent?parent.c:'#2f6fed'});
-        });
-      });
-      cats=subItems.map(it=>it.name);
-      colors=subItems.map(it=>it.parentColor);
-      if(ent){
-        const e=(DATA[ent]&&DATA[ent][k])||{}; const Ne=e.N||0;
-        const ind=entityRec(k,true); const Nind=ind.N||0;
-        compData=[]; indData=[];
-        subItems.forEach(it=>{
-          const cat=Object.values(MC_CATS).find(c=>c.items.some(x=>x[0]===it.key));
-          if(!cat){ compData.push(null); indData.push(null); return; }
-          const ev=mcEntityVals(k,cat); const iv=mcIndVals(k,cat);
-          const idx=cat.items.findIndex(x=>x[0]===it.key);
-          const evV=(ev&&idx<ev.length)?ev[idx]:null;
-          const ivV=(iv&&idx<iv.length)?iv[idx]:null;
-          compData.push((Ne>0&&evV!=null)?evV/Ne*100:null);
-          indData.push((Nind>0&&ivV!=null)?ivV/Nind*100:null);
-        });
-      } else { compData=subItems.map(()=>null); indData=subItems.map(()=>null); }
+      // 子风险下钻：先选一个顶层风险(寿险/非寿/市场/信用)，再展示该顶层下的子项占比
+      // 占比分母 = 该顶层风险合计（life→mcP, nonlife→mcQ, market→mcR, credit→mcS）
+      const subKey=S.mcPieParent in MC_CATS ? S.mcPieParent : 'market';
+      const cat=MC_CATS[subKey];
+      if(!cat){ cats=[]; compData=[]; indData=[]; colors=[]; }
+      else {
+        cats=cat.items.map(it=>it[1]);
+        colors=cat.items.map(()=> (MC_COMP.find(c=>c.sub===subKey)||{}).c || '#2f6fed');
+        const parentField=MC_AGG[cat.total]; // mcP→P, mcR→R, ...
+        if(ent){
+          const e=(DATA[ent]&&DATA[ent][k])||{};
+          const Ne=parentField?(e[parentField]||0):null;
+          const ind=entityRec(k,true);
+          const Nind=parentField?(ind[parentField]||0):null;
+          const ev=mcEntityVals(k,cat);
+          const iv=mcIndVals(k,cat);
+          compData=ev.map(v=>(Ne>0 && v!=null)?v/Ne*100:null);
+          indData=iv.map(v=>(Nind>0 && v!=null)?v/Nind*100:null);
+        } else { compData=cats.map(()=>null); indData=cats.map(()=>null); }
+      }
     } else {
       // 顶层视图
       cats=MC_COMP.map(c=>c.n);
@@ -1250,7 +1263,7 @@
     });
     document.getElementById('rankMetric').querySelectorAll('button').forEach(b=>b.onclick=()=>{
       document.getElementById('rankMetric').querySelectorAll('button').forEach(x=>x.classList.remove('on'));
-      b.classList.add('on'); S.rankMetric=b.dataset.v; renderRank();
+      b.classList.add('on'); S.rankMetric=b.dataset.v; renderRank(); renderRankEvo();
     });
     document.getElementById('rankPeriod').onchange=e=>{S.rankPeriod=e.target.value; renderRank();};
     document.getElementById('rankSearch').oninput=()=>renderRank();
@@ -1294,6 +1307,11 @@
     if(mcPieModeEl) mcPieModeEl.querySelectorAll('button').forEach(b=>b.onclick=()=>{
       mcPieModeEl.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
       b.classList.add('on'); S.mcPieMode=b.dataset.v; renderRisk();
+    });
+    const mcPieParentEl=document.getElementById('mcPieParent');
+    if(mcPieParentEl) mcPieParentEl.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+      mcPieParentEl.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on'); S.mcPieParent=b.dataset.v; renderRisk();
     });
     document.getElementById('alertPeriod').onchange=e=>{S.alertPeriod=e.target.value; renderAlert();};
     document.getElementById('alertFilter').querySelectorAll('button').forEach(b=>b.onclick=()=>{
