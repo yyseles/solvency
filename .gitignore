@@ -1,12 +1,1 @@
-# 调试截图与临时产物
-_*
-*.png
-*.xls
-*.xlsx
-*.bas
-*.txt
-api_*.json
-tools/
-
-# 保留构建脚本
-!_build_standalone.py
+*.bak
