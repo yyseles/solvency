@@ -13,6 +13,7 @@
     rankMetric:'C', rankPeriod:null,
     riskEntity:null, riskInd:true, riskPeriod:null, capTab:'mc',
     equityForm:'tier',
+    mcPieMode:'top',
     rankEvo:null,
     alertPeriod:null, alertFilter:'all',
     cmp:new Set(), focus:null
@@ -675,23 +676,55 @@
   }
   // 最低资本：公司 vs 行业 占比对比（横向分组条形，百分数 2 位小数）
   function renderCapPieCmp(k){
-    const cats=MC_COMP.map(c=>c.n);
     const ent=S.riskEntity;
-    let compData, indData;
-    if(ent){
-      const e=(DATA[ent]&&DATA[ent][k])||{}; const Ne=e.N||0;
-      const ind=entityRec(k,true); const Nind=ind.N||0;
-      compData=MC_COMP.map(c=>Ne>0?(e[c.f]/Ne*100):null);
-      indData=MC_COMP.map(c=>Nind>0?(ind[c.f]/Nind*100):null);
-    } else { compData=MC_COMP.map(()=>null); indData=MC_COMP.map(()=>null); }
+    let cats, compData, indData, colors;
+    if(S.mcPieMode==='sub'){
+      // 子风险下钻：把 life/nonlife/market/credit 的明细项平铺
+      const subItems=[];
+      ['life','nonlife','market','credit'].forEach(subKey=>{
+        const cat=MC_CATS[subKey];
+        if(!cat) return;
+        const parent=MC_COMP.find(c=>c.sub===subKey);
+        cat.items.forEach(it=>{
+          subItems.push({key:it[0], name:it[1], parentColor:parent?parent.c:'#2f6fed'});
+        });
+      });
+      cats=subItems.map(it=>it.name);
+      colors=subItems.map(it=>it.parentColor);
+      if(ent){
+        const e=(DATA[ent]&&DATA[ent][k])||{}; const Ne=e.N||0;
+        const ind=entityRec(k,true); const Nind=ind.N||0;
+        compData=[]; indData=[];
+        subItems.forEach(it=>{
+          const cat=Object.values(MC_CATS).find(c=>c.items.some(x=>x[0]===it.key));
+          if(!cat){ compData.push(null); indData.push(null); return; }
+          const ev=mcEntityVals(k,cat); const iv=mcIndVals(k,cat);
+          const idx=cat.items.findIndex(x=>x[0]===it.key);
+          const evV=(ev&&idx<ev.length)?ev[idx]:null;
+          const ivV=(iv&&idx<iv.length)?iv[idx]:null;
+          compData.push((Ne>0&&evV!=null)?evV/Ne*100:null);
+          indData.push((Nind>0&&ivV!=null)?ivV/Nind*100:null);
+        });
+      } else { compData=subItems.map(()=>null); indData=subItems.map(()=>null); }
+    } else {
+      // 顶层视图
+      cats=MC_COMP.map(c=>c.n);
+      colors=MC_COMP.map(c=>c.c);
+      if(ent){
+        const e=(DATA[ent]&&DATA[ent][k])||{}; const Ne=e.N||0;
+        const ind=entityRec(k,true); const Nind=ind.N||0;
+        compData=MC_COMP.map(c=>Ne>0?(e[c.f]/Ne*100):null);
+        indData=MC_COMP.map(c=>Nind>0?(ind[c.f]/Nind*100):null);
+      } else { compData=MC_COMP.map(()=>null); indData=MC_COMP.map(()=>null); }
+    }
     setOpt('riskCapPieCmp',{
       tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:v=>v==null?'—':v.toFixed(2)+'%'},
       legend:{data:['公司占比','行业占比'],top:0},
       grid:{left:92,right:30,top:35,bottom:30},
       xAxis:{type:'value',name:'占比%',axisLabel:{formatter:v=>v.toFixed(0)+'%'}},
-      yAxis:{type:'category',data:cats},
+      yAxis:{type:'category',data:cats,axisLabel:{fontSize:11}},
       series:[
-        {name:'公司占比',type:'bar',data:compData,itemStyle:{color:'#2f6fed'}},
+        {name:'公司占比',type:'bar',data:compData.map((v,i)=>({value:v,itemStyle:{color:colors[i]}}))},
         {name:'行业占比',type:'bar',data:indData,itemStyle:{color:'#cfd8e3'}}
       ]
     });
@@ -1256,6 +1289,11 @@
     document.getElementById('equityForm').querySelectorAll('button').forEach(b=>b.onclick=()=>{
       document.getElementById('equityForm').querySelectorAll('button').forEach(x=>x.classList.remove('on'));
       b.classList.add('on'); S.equityForm=b.dataset.v; renderRisk();
+    });
+    const mcPieModeEl=document.getElementById('mcPieMode');
+    if(mcPieModeEl) mcPieModeEl.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+      mcPieModeEl.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on'); S.mcPieMode=b.dataset.v; renderRisk();
     });
     document.getElementById('alertPeriod').onchange=e=>{S.alertPeriod=e.target.value; renderAlert();};
     document.getElementById('alertFilter').querySelectorAll('button').forEach(b=>b.onclick=()=>{

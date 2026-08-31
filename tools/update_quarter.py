@@ -56,9 +56,44 @@ CAP_ROW_MAP = {
     "附属一级资本": "sub1", "附属二级资本": "sub2", "实际资本合计": "total",
 }
 REG_SEG_MAP = {"财产险公司": "property", "人身险公司": "life", "再保险公司": "reins"}
-MC_ROW_MAP = {  # 最低资本表行号(0-indexed) -> 字段
-    3: "P", 8: "Q", 12: "R", 20: "S", 24: "T", 25: "U", 28: "V", 34: "N",
+# 最低资本表：聚合项（与 data.js 主表 P~V+N 对应）按指标名匹配
+MC_AGG_MAP = {
+    "寿险业务保险风险最低资本合计": "P",
+    "非寿险业务保险风险最低资本合计": "Q",
+    "市场风险-最低资本合计": "R",
+    "信用风险-最低资本合计": "S",
+    "量化风险分散效应": "T",
+    "特定类别保险合同损失吸收效应": "U",
+    "控制风险最低资本": "V",
+    "最低资本": "N",
 }
+# 最低资本表：下钻明细项（写入 segments.<seg>.mcDetail）按指标名匹配
+MC_DETAIL_MAP = {
+    "寿险业务保险风险-损失发生风险最低资本": "mcP_loss",
+    "寿险业务保险风险-退保风险最低资本": "mcP_surr",
+    "寿险业务保险风险-费用风险最低资本": "mcP_exp",
+    "寿险业务保险风险-风险分散效应": "mcP_div",
+    "非寿险业务保险风险-保费及准备金风险最低资本": "mcQ_prem",
+    "非寿险业务保险风险-巨灾风险最低资本": "mcQ_cata",
+    "非寿险业务保险风险-风险分散效应": "mcQ_div",
+    "市场风险-利率风险最低资本": "mcR_rate",
+    "市场风险-权益价格风险最低资本": "mcR_eq",
+    "市场风险-房地产价格风险最低资本": "mcR_re",
+    "市场风险-境外固定收益类资产价格风险最低资本": "mcR_ofb",
+    "市场风险-境外权益类资产价格风险最低资本": "mcR_ofe",
+    "市场风险-汇率风险最低资本": "mcR_fx",
+    "市场风险-风险分散效应": "mcR_div",
+    "信用风险-利差风险最低资本": "mcS_spr",
+    "信用风险-交易对手违约风险最低资本": "mcS_def",
+    "信用风险-风险分散效应": "mcS_div",
+    "附加资本": "mcAdd",
+    "逆周期附加资本": "mcAdd_cyc",
+    "D-SII附加资本": "mcAdd_dsii",
+    "G-SII附加资本": "mcAdd_gsii",
+    "其他附加资本": "mcAdd_oth",
+}
+# 旧版最低资本表兜底行号（无指标名匹配时回退）
+MC_ROW_MAP = {3: "P", 8: "Q", 12: "R", 20: "S", 24: "T", 25: "U", 28: "V", 34: "N"}
 
 
 def period_def(key):
@@ -177,6 +212,23 @@ def read_mc_excel(path):
         m = re.match(r"(\d{4})第(\d)季度", str(s).strip())
         return f"{m.group(1)}Q{m.group(2)}" if m else None
 
+    # 指标名 -> 行号
+    agg_map = {}      # name -> field (P..N)
+    detail_map = {}   # name -> field (mcP_loss..mcAdd_oth)
+    fallback_agg = {} # row_idx -> field (旧版兜底)
+    for ri, r in enumerate(rows):
+        name = str(r[0]).strip() if r[0] is not None else ""
+        if not name:
+            continue
+        if name in MC_AGG_MAP:
+            agg_map[name] = MC_AGG_MAP[name]
+        if name in MC_DETAIL_MAP:
+            detail_map[name] = MC_DETAIL_MAP[name]
+        if ri in MC_ROW_MAP:
+            fallback_agg[ri] = MC_ROW_MAP[ri]
+
+    use_name_agg = bool(agg_map)
+
     out = {}
     current_comp = None
     for col in range(1, len(header_row)):
@@ -188,17 +240,27 @@ def read_mc_excel(path):
         pkey = parse_period(period_row[col])
         if not pkey:
             continue
-        values = {}
-        for row_idx, field in MC_ROW_MAP.items():
-            if row_idx < len(rows):
-                cv = rows[row_idx][col]
-                if cv not in (None, ""):
-                    try:
-                        values[field] = round(float(cv), 6)
-                    except (ValueError, TypeError):
-                        pass
-        if values:
-            out.setdefault(current_comp, {})[pkey] = values
+        agg_vals = {}
+        detail_vals = {}
+        for row_idx, r in enumerate(rows):
+            cv = r[col] if col < len(r) else None
+            if cv in (None, ""):
+                continue
+            try:
+                fv = round(float(cv), 6)
+            except (ValueError, TypeError):
+                continue
+            name = str(r[0]).strip() if r[0] is not None else ""
+            # 聚合项
+            field = agg_map.get(name) if use_name_agg else fallback_agg.get(row_idx)
+            if field:
+                agg_vals[field] = fv
+            # 明细项
+            df = detail_map.get(name)
+            if df:
+                detail_vals[df] = fv
+        if agg_vals or detail_vals:
+            out.setdefault(current_comp, {})[pkey] = {"agg": agg_vals, "detail": detail_vals}
     return out
 
 
@@ -386,7 +448,7 @@ def upsert_capital(quarter, rev, dry, overwrite):
 
 
 def upsert_mc(quarter, rev, dry, overwrite):
-    print("=== 最低资本明细 (P~V+N) ===")
+    print("=== 最低资本明细 (P~V+N + mcDetail 下钻) ===")
     mc_bases = {"life": "人身险最低资本", "property": "产险最低资本", "reins": "再保最低资本"}
     var, D, header = load_js(DATA_JS)
     changed = False
@@ -395,9 +457,11 @@ def upsert_mc(quarter, rev, dry, overwrite):
         if not p:
             print(f"  [SKIP] 无 {rev} 源文件: {base}")
             continue
-        recs = read_mc_excel(p)  # {comp: {period: {P..V,N}}}
+        recs = read_mc_excel(p)  # {comp: {period: {"agg":{P..N},"detail":{mcP_loss..}}}}}
         segobj = D["segments"][seg]
+        mcDetail = segobj.setdefault("mcDetail", {})
         n_new = n_ovw = n_skip = 0
+        d_new = d_ovw = d_skip = 0
         for comp, permap in recs.items():
             if quarter not in permap:
                 continue
@@ -405,18 +469,35 @@ def upsert_mc(quarter, rev, dry, overwrite):
             if comp not in segobj["companies"]:
                 print(f"  [WARN] {comp} 不在 data.js {seg} 公司列表，跳过")
                 continue
+            # 1) 主表聚合 P~V+N
             od = segobj["data"].setdefault(comp, {})
             rec = od.setdefault(quarter, {})
             has = any(k in rec for k in ("P", "Q", "R", "S", "T", "U", "V", "N"))
             if has and not overwrite:
                 n_skip += 1
-                continue
-            for f, v in vals.items():
-                rec[f] = v
-            n_ovw += 1 if has else 0
-            n_new += 0 if has else 1
-            changed = True
-        print(f"  {seg}: 写入 {n_new + n_ovw} 家 (新 {n_new}/覆盖 {n_ovw}, {os.path.basename(p)})")
+            else:
+                for f, v in vals.get("agg", {}).items():
+                    rec[f] = v
+                if has:
+                    n_ovw += 1
+                else:
+                    n_new += 1
+                changed = True
+            # 2) mcDetail 下钻明细
+            det = vals.get("detail", {})
+            if det:
+                existing_det = mcDetail.setdefault(comp, {}).get(quarter)
+                has_det = existing_det and any(v is not None for v in existing_det.values())
+                if has_det and not overwrite:
+                    d_skip += 1
+                else:
+                    mcDetail[comp][quarter] = det
+                    if has_det:
+                        d_ovw += 1
+                    else:
+                        d_new += 1
+                    changed = True
+        print(f"  {seg}: 主表 {n_new + n_ovw} 家(新{n_new}/覆盖{n_ovw}/跳过{n_skip})  mcDetail {d_new + d_ovw} 家(新{d_new}/覆盖{d_ovw}/跳过{d_skip})  ({os.path.basename(p)})")
     if changed and not dry:
         save_js(DATA_JS, var, D, header, dry)
     elif dry:

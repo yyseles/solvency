@@ -62,6 +62,8 @@
   .rank-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
   .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:var(--shadow);border:1px solid var(--line);margin-bottom:18px}
   .card h3{margin:0 0 12px;font-size:15px;font-weight:700}
+  .card-hd{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .card-hd h3{margin:0}
   .card .hint{font-size:12px;color:var(--sub);margin:-6px 0 10px}
   .chart{width:100%}
   .row-ctl{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
@@ -314,7 +316,14 @@
             <div class="card"><h3 id="capCmpTitle">公司 vs 行业 · 最低资本拆解</h3>
               <div id="riskCapCmp2" style="font-size:12px;line-height:1.7;max-height:330px;overflow:auto"></div>
             </div>
-            <div class="card"><h3>公司 vs 行业 · 占比对比</h3>
+            <div class="card">
+              <div class="card-hd">
+                <h3>公司 vs 行业 · 占比对比</h3>
+                <div class="seg" id="mcPieMode">
+                  <button data-v="top" class="on">顶层</button>
+                  <button data-v="sub">子风险</button>
+                </div>
+              </div>
               <div id="riskCapPieCmp" class="chart" style="height:320px"></div>
             </div>
           </div>
