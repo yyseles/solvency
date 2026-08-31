@@ -408,14 +408,14 @@
 
   // ---------- 公司排名 ----------
   function renderRank(){
-    const k=S.rankPeriod, field=S.rankMetric;
+    const k=S.rankPeriod;
     const all=COMPS.map(c=>{const r=DATA[c][k]; const st=statusOf(c,k);
-      return {c, v:(st==='nodata')?null:(r?r[field]:null), C:r?r.C:null, D:r?r.D:null, I:r?r.I:null, N:r?r.N:null, st};});
+      return {c, v:(st==='nodata'||!r||r.C==null)?null:r.C, C:r?r.C:null, D:r?r.D:null, I:r?r.I:null, N:r?r.N:null, st};});
     const disclosed=all.filter(x=>x.v!=null).sort((a,b)=>b.v-a.v);
     const nodata=all.filter(x=>x.st==='nodata').sort((a,b)=>a.c.localeCompare(b.c));
     const rows=disclosed.concat(nodata);
     const cats=disclosed.map(x=>x.c), vals=disclosed.map(x=>x.v);
-    const colors=disclosed.map(x=> x.v< pctLine(field)?'#e74c3c':(x.v< pctLine(field)*1.5?'#e67e22':'#27ae60'));
+    const colors=disclosed.map(x=> x.v< pctLine('C')?'#e74c3c':(x.v< pctLine('C')*1.5?'#e67e22':'#27ae60'));
     setOpt('rankBar',{
       tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:v=>(v*100).toFixed(1)+'%'},
       grid:{left:110,right:40,top:10,bottom:30},
@@ -462,9 +462,10 @@
       return my==null? null : vals.indexOf(my)+1;
     });
     setOpt(id,{
+      title:{text:name+'（蓝） vs '+name.replace('充足率','排名')+'（橙·右轴）',left:0,top:4,textStyle:{fontSize:12,color:'#555',fontWeight:'normal'}},
       tooltip:{trigger:'axis'},
-      legend:{data:[name,'行业排名'],top:0},
-      grid:{left:50,right:52,top:28,bottom:28},
+      legend:{data:[name,'行业排名'],top:22},
+      grid:{left:50,right:52,top:52,bottom:28},
       xAxis:{type:'category',data:labels,axisLabel:{rotate:35,fontSize:10}},
       yAxis:[{type:'value',name:'充足率',axisLabel:{formatter:v=>(v*100).toFixed(0)+'%',fontSize:10},nameTextStyle:{fontSize:10}},
              {type:'value',name:'排名',inverse:true,min:1,max:COMPS.length,axisLabel:{fontSize:10},nameTextStyle:{fontSize:10}}],
@@ -478,37 +479,28 @@
     const c=S.rankEvo;
     if(!c){
       const emptyOpt={title:{text:'请选择公司',left:'center',top:'middle',textStyle:{color:'#999'}}};
-      setOpt('rankEvoC',emptyOpt); setOpt('rankEvoD',emptyOpt);
-      document.getElementById('rankEvoC').parentElement.style.display='none';
-      document.getElementById('rankEvoD').parentElement.style.display='none';
+      setOpt('rankEvo',emptyOpt);
       return;
     }
-    // 按 S.rankMetric 决定展示哪张图（C=综合/D=核心）；另一张隐藏
-    const cardC=document.getElementById('rankEvoC').parentElement;
-    const cardD=document.getElementById('rankEvoD').parentElement;
-    if(S.rankMetric==='D'){
-      cardC.style.display='none';
-      cardD.style.display='';
-      renderEvoChart('rankEvoD','D');
-    } else {
-      cardC.style.display='';
-      cardD.style.display='none';
-      renderEvoChart('rankEvoC','C');
-    }
     const field=S.rankMetric;
+    renderEvoChart('rankEvo',field);
     const sl=tlSlice();
     const labels=sl.map(k=>KEY2PERIOD[k].label);
     const cv=sl.map(k=>{const r=DATA[c][k]; return r? r.C:null;});
     const dv=sl.map(k=>{const r=DATA[c][k]; return r? r.D:null;});
-    const rank=sl.map(k=>{
-      const vals=COMPS.map(x=>{const r=DATA[x][k]; return (r&&r[field]!=null)?r[field]:null;}).filter(v=>v!=null).sort((a,b)=>b-a);
-      const my=(DATA[c][k]&&DATA[c][k][field]!=null)?DATA[c][k][field]:null;
+    const cRank=sl.map(k=>{
+      const vals=COMPS.map(x=>{const r=DATA[x][k]; return (r&&r.C!=null)?r.C:null;}).filter(v=>v!=null).sort((a,b)=>b-a);
+      const my=(DATA[c][k]&&DATA[c][k].C!=null)?DATA[c][k].C:null;
+      return my==null? null : vals.indexOf(my)+1;
+    });
+    const dRank=sl.map(k=>{
+      const vals=COMPS.map(x=>{const r=DATA[x][k]; return (r&&r.D!=null)?r.D:null;}).filter(v=>v!=null).sort((a,b)=>b-a);
+      const my=(DATA[c][k]&&DATA[c][k].D!=null)?DATA[c][k].D:null;
       return my==null? null : vals.indexOf(my)+1;
     });
     const tb=document.getElementById('rankEvoTable');
-    const rankHdr = field==='D' ? '核心排名' : '综合排名';
-    document.getElementById('rankEvoTableHdr').querySelector('thead').innerHTML=`<tr><th>报告期</th><th>综合</th><th>核心</th><th>${rankHdr}</th></tr>`;
-    tb.querySelector('tbody').innerHTML=sl.map((k,i)=>`<tr><td>${labels[i]}</td><td>${pct(cv[i])}</td><td>${pct(dv[i])}</td><td>${rank[i]!=null?rank[i]+' / '+COMPS.length:'—'}</td></tr>`).join('');
+    document.getElementById('rankEvoTableHdr').querySelector('thead').innerHTML='<tr><th>报告期</th><th>综合</th><th>核心</th><th>综合排名</th><th>核心排名</th></tr>';
+    tb.querySelector('tbody').innerHTML=sl.map((k,i)=>`<tr><td>${labels[i]}</td><td>${pct(cv[i])}</td><td>${pct(dv[i])}</td><td>${cRank[i]!=null?cRank[i]+' / '+COMPS.length:'—'}</td><td>${dRank[i]!=null?dRank[i]+' / '+COMPS.length:'—'}</td></tr>`).join('');
   }
 
   // ---------- 风险分布 ----------
@@ -1263,7 +1255,7 @@
     });
     document.getElementById('rankMetric').querySelectorAll('button').forEach(b=>b.onclick=()=>{
       document.getElementById('rankMetric').querySelectorAll('button').forEach(x=>x.classList.remove('on'));
-      b.classList.add('on'); S.rankMetric=b.dataset.v; renderRank(); renderRankEvo();
+      b.classList.add('on'); S.rankMetric=b.dataset.v; renderRankEvo();
     });
     document.getElementById('rankPeriod').onchange=e=>{S.rankPeriod=e.target.value; renderRank();};
     document.getElementById('rankSearch').oninput=()=>renderRank();

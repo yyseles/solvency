@@ -162,8 +162,8 @@
     /* 风险结构趋势图 */
     #riskCapTrendInd,#riskCapTrend,#equityTrendInd,#riskEquityTrend{height:420px!important}
     #riskCapPieCmp,#equityPieCmp{height:260px!important}
-    /* 排名 evo 图 */
-    #rankEvoC,#rankEvoD{height:140px!important}
+    /* 排名 evo 图（与 rankBar 等高） */
+    #rankEvo{height:300px!important}
     /* rank bar 图 */
     #rankBar{height:300px!important}
     /* dist 堆叠图 */
@@ -243,20 +243,13 @@
       <div class="card" style="padding-bottom:12px">
         <div class="row-ctl" style="margin-bottom:0">
           <span class="ctl" style="color:var(--sub)">公司：</span><select id="rankEvoSel"></select>
-          <span class="ctl" style="color:var(--sub);margin-left:6px;font-size:12px;color:#9aa7b5">（右图随左侧指标同步切换 综合 / 核心）</span>
+          <span class="ctl" style="color:var(--sub);margin-left:6px;font-size:12px;color:#9aa7b5">（右侧趋势图随上方指标切换 综合 / 核心）</span>
         </div>
       </div>
       <!-- 第2行：图表（同一行 → 底部对齐） -->
       <div class="card"><div id="rankBar" class="chart" style="height:340px"></div></div>
-      <div class="card" style="display:flex;flex-direction:column;gap:10px">
-        <div>
-          <div class="hint" style="margin-bottom:2px">综合充足率（蓝） vs 综合排名（橙·右轴）</div>
-          <div id="rankEvoC" class="chart" style="height:162px"></div>
-        </div>
-        <div>
-          <div class="hint" style="margin-bottom:2px">核心充足率（绿） vs 核心排名（橙·右轴）</div>
-          <div id="rankEvoD" class="chart" style="height:162px"></div>
-        </div>
+      <div class="card">
+        <div id="rankEvo" class="chart" style="height:340px"></div>
       </div>
       <!-- 第3行：表格（同一行 → 顶部对齐） -->
       <div class="card split-table">
