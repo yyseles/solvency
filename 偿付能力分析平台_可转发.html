@@ -1400,7 +1400,7 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
       legend:{data:['公司占比','行业占比'],top:0},
       grid:{left:92,right:30,top:35,bottom:30},
       xAxis:{type:'value',name:'占比%',axisLabel:{formatter:v=>v.toFixed(0)+'%'}},
-      yAxis:{type:'category',data:cats,axisLabel:{fontSize:11}},
+      yAxis:{type:'category',data:cats,axisLabel:{fontSize:11,interval:0}},
       series:[
         {name:'公司占比',type:'bar',data:compData.map((v,i)=>({value:v,itemStyle:{color:colors[i]}}))},
         {name:'行业占比',type:'bar',data:indData,itemStyle:{color:'#cfd8e3'}}
