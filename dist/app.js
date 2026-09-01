@@ -522,6 +522,7 @@
       grid:{left:45,right:20,top:35,bottom:55},
       xAxis:{type:'category',data:labels,axisLabel:{rotate:35}},
       yAxis:{type:'value',name:'公司数',max:COMPS.length},
+      dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:8}],
       series:buckets.map((b,i)=>({name:b,type:'bar',stack:'t',data:counts[i],itemStyle:{color:BUCKET_COL[b]}}))
     });
   }
@@ -781,6 +782,7 @@
       grid:{left:55,right:20,top:35,bottom:55},
       xAxis:{type:'category',data:labels,axisLabel:{rotate:35}},
       yAxis:{type:'value',name:'占I比例%',max:100,axisLabel:{formatter:v=>v.toFixed(0)+'%'}},
+      dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:8}],
       series
     });
   }
@@ -811,6 +813,7 @@
       grid:{left:55,right:20,top:35,bottom:55},
       xAxis:{type:'category',data:labels,axisLabel:{rotate:35}},
       yAxis:{type:'value',name:'占I比例%',max:100,axisLabel:{formatter:v=>v.toFixed(0)+'%'}},
+      dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:8}],
       series
     });
   }
