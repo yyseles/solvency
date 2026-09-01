@@ -291,6 +291,11 @@ def read_reg_xls(path, quarter):
     if qcol is None:
         print(f"  [WARN] 未在 {os.path.basename(path)} 找到 {qname} 列")
         return {}
+    # 单位检测：监管披露 xls 部分年份是百分数（2022：300.1=300.1%），部分是十进制比率（2023+：2.853）。
+    # 扫描表头后几行同列数值，若典型值 < 10 视为十进制比率需 ×100，否则已为百分数。
+    _samples = [float(ws.cell(r, qcol).value) for r in range(hdr_row + 1, min(hdr_row + 6, ws.nrows))
+                if isinstance(ws.cell(r, qcol).value, (int, float))]
+    unit_mult = 1.0 if (not _samples or max(abs(x) for x in _samples) >= 10) else 100.0
     out = {}
     cur_metric = None
     for r in range(hdr_row + 1, ws.nrows):
@@ -309,7 +314,7 @@ def read_reg_xls(path, quarter):
         if v in (None, ""):
             continue
         try:
-            v = round(float(v) * 100.0, 2)
+            v = round(float(v) * unit_mult, 2)
         except Exception:
             continue
         out.setdefault(seg, {})["C" if is_c else "D"] = round(v, 4)
