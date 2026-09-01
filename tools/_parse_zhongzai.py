@@ -11,6 +11,9 @@ import openpyxl
 
 REV = '0901'
 PERIOD_STR = {
+    '2022Q1': ('2022第一季度', '2022第1季度'), '2022Q2': ('2022第二季度', '2022第2季度'),
+    '2022Q3': ('2022第三季度', '2022第3季度'), '2022Q4': ('2022第四季度', '2022第4季度'),
+    '2023Q1': ('2023第一季度', '2023第1季度'),
     '2023Q2': ('2023第二季度', '2023第2季度'), '2023Q3': ('2023第三季度', '2023第3季度'),
     '2024Q1': ('2024第一季度', '2024第1季度'), '2024Q2': ('2024第二季度', '2024第2季度'),
     '2024Q3': ('2024第三季度', '2024第3季度'), '2024Q4': ('2024第四季度', '2024第4季度'),
@@ -45,6 +48,16 @@ DETAIL_LABEL_TO_KEY = {
     '信用风险-风险分散效应': 'mcS_div', '附加资本': 'mcAdd', '逆周期附加资本': 'mcAdd_cyc',
     'D-SII附加资本': 'mcAdd_dsii', 'G-SII附加资本': 'mcAdd_gsii', '其他附加资本': 'mcAdd_oth',
 }
+# 老报告(2022)长标签被 pdfplumber 截断、数字转到下一行时的兜底核心子串（须唯一）
+DETAIL_CORE = {
+    '寿险业务保险风险-损失发生风险最低资本': '损失发生风险',
+    '寿险业务保险风险-费用风险最低资本': '费用风险最低资本',
+    '非寿险业务保险风险-保费及准备金风险最低资本': '保费及准备金',
+    '非寿险业务保险风险-巨灾风险最低资本': '巨灾风险',
+    '市场风险-境外固定收益类资产价格风险最低资本': '境外固定收益',
+    '市场风险-境外权益类资产价格风险最低资本': '境外权益类资产价格风险',
+    '市场风险-房地产价格风险最低资本': '房地产价格风险最低资本',
+}
 
 def _num(s):
     if s is None: return None
@@ -57,11 +70,7 @@ def parse_pdf(path):
     pages = [p.extract_text() or '' for p in pdfplumber.open(path).pages]
     main = next((t for t in pages if '综合偿付能力充足率' in t and '（万元）' in t), '')
     rec = {}
-    for f in ['C', 'D']:
-        lab = {'C': '综合偿付能力充足率', 'D': '核心偿付能力充足率'}[f]
-        m = re.search(lab + r'（%）\s*([\d\.]+)%', main)
-        rec[f] = float(m.group(1)) / 100 if m else None
-    for f, lab in [('E', '综合偿付能力溢额'), ('F', '核心偿付能力溢额'), ('G', '认可资产'),
+    for f, lab in [('G', '认可资产'),
                    ('H', '认可负债'), ('I', '实际资本'), ('J', '核心一级资本'), ('K', '核心二级资本'),
                    ('L', '附属一级资本'), ('M', '附属二级资本'), ('N', '最低资本'),
                    ('O', '可资本化风险最低资本'), ('V', '控制风险最低资本')]:
@@ -70,22 +79,56 @@ def parse_pdf(path):
         if rec[f] is None:
             m2 = re.search(r'量化风险最低资本（万元）\s*([\d,\.\-]+)', main)
             rec[f] = _num(m2.group(1)) if m2 else None
+    # 充足率/溢额：用 实际资本/最低资本 稳健计算（避免表头格式差异，且与已入库值完全一致）
+    if rec.get('I') and rec.get('N'):
+        rec['C'] = round(rec['I'] / rec['N'], 6)
+        rec['D'] = round((rec.get('J', 0) + rec.get('K', 0)) / rec['N'], 6)
+        rec['E'] = round(rec['I'] - rec['N'], 2)
+        rec['F'] = round((rec.get('J', 0) + rec.get('K', 0)) - rec['N'], 2)
     detail_pages = [t for t in pages if '最低资本' in t and '风险最低资本' in t and '（万元）' not in t]
     merged = re.sub(r'\s+', ' ', '\n'.join(detail_pages))
-    def get_yuan(label):
+    detail_lines = [ln for t in detail_pages for ln in t.splitlines()]
+
+    def _r(s):
+        return round(float(str(s).replace(',', '')) / 10000, 2)
+
+    def get_yuan(label, core=None):
+        # 1) 精确标签 + 千分位
         m = re.search(re.escape(label) + r'\D*?(\d{1,3}(?:,\d{3})+(?:\.\d+)?)', merged)
-        if not m:
-            m = re.search(re.escape(label.replace('最低资本', '')) + r'\D*?(\d{1,3}(?:,\d{3})+(?:\.\d+)?)', merged)
-        if not m:
-            alt = label.replace('信用风险-最低资本', '信用风险最低资本')
-            if alt != label:
-                m = re.search(re.escape(alt) + r'\D*?(\d{1,3}(?:,\d{3})+(?:\.\d+)?)', merged)
-        return round(float(m.group(1).replace(',', '')) / 10000, 2) if m else None
+        if m:
+            return _r(m.group(1))
+        # 2) 信用风险 标签变体
+        alt = label.replace('信用风险-最低资本', '信用风险最低资本')
+        if alt != label:
+            m = re.search(re.escape(alt) + r'\D*?(\d{1,3}(?:,\d{3})+(?:\.\d+)?)', merged)
+            if m:
+                return _r(m.group(1))
+        # 3) 行级兜底（老报告长标签被截断，数字转到下一行）
+        if core:
+            for idx, line in enumerate(detail_lines):
+                if core in line:
+                    for j in range(idx, min(idx + 3, len(detail_lines))):
+                        mm = re.search(r'(\d{1,3}(?:,\d{3})+(?:\.\d+)?)', detail_lines[j])
+                        if mm:
+                            return _r(mm.group(1))
+        # 4) 兜底：无千分位的纯数字（如 0）
+        m = re.search(re.escape(label) + r'\D*?(\d+(?:\.\d+)?)', merged)
+        if m:
+            return _r(m.group(1))
+        if core:
+            for idx, line in enumerate(detail_lines):
+                if core in line:
+                    for j in range(idx, min(idx + 3, len(detail_lines))):
+                        mm = re.search(r'(\d+(?:\.\d+)?)', detail_lines[j])
+                        if mm:
+                            return _r(mm.group(1))
+        return None
+
     for f, lab in [('P', '寿险业务保险风险最低资本'), ('Q', '非寿险业务保险风险最低资本'),
                    ('R', '市场风险-最低资本'), ('S', '信用风险-最低资本'),
                    ('T', '量化风险分散效应'), ('U', '特定类别保险合同损失吸收效应')]:
         rec[f] = get_yuan(lab)
-    mc = {k: get_yuan(lab) for lab, k in DETAIL_LABEL_TO_KEY.items()}
+    mc = {k: get_yuan(lab, DETAIL_CORE.get(lab)) for lab, k in DETAIL_LABEL_TO_KEY.items()}
     return rec, mc
 
 def generate(quarter, rec, mc, out):
@@ -127,7 +170,7 @@ def main():
             rec, mc = parse_pdf(path)
             print('====', q, '====')
             print(' 主表:', {k: rec.get(k) for k in 'CDEFGHIJKLMNOPQRSTUV'})
-            print(' mc:', {k: mc.get(k) for k in ['mcP_loss','mcP_surr','mcQ_prem','mcQ_cata','mcR_rate','mcR_eq','mcR_ofb','mcR_ofe','mcR_fx','mcS_spr','mcS_def','mcAdd']})
+            print(' mc:', mc)
     elif mode == 'gen':
         for path in sorted(glob.glob(os.path.join(d, '*.pdf'))):
             q = os.path.basename(path)[:-4]
