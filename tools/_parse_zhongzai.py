@@ -15,6 +15,7 @@ PERIOD_STR = {
     '2022Q3': ('2022第三季度', '2022第3季度'), '2022Q4': ('2022第四季度', '2022第4季度'),
     '2023Q1': ('2023第一季度', '2023第1季度'),
     '2023Q2': ('2023第二季度', '2023第2季度'), '2023Q3': ('2023第三季度', '2023第3季度'),
+    '2023Q4': ('2023第四季度', '2023第4季度'),
     '2024Q1': ('2024第一季度', '2024第1季度'), '2024Q2': ('2024第二季度', '2024第2季度'),
     '2024Q3': ('2024第三季度', '2024第3季度'), '2024Q4': ('2024第四季度', '2024第4季度'),
     '2025Q1': ('2025第一季度', '2025第1季度'), '2025Q2': ('2025第二季度', '2025第2季度'),
@@ -57,6 +58,7 @@ DETAIL_CORE = {
     '市场风险-境外固定收益类资产价格风险最低资本': '境外固定收益',
     '市场风险-境外权益类资产价格风险最低资本': '境外权益类资产价格风险',
     '市场风险-房地产价格风险最低资本': '房地产价格风险最低资本',
+    '特定类别保险合同损失吸收效应': '特定类别保险合同损失吸收',
 }
 
 def _num(s):
@@ -66,25 +68,57 @@ def _num(s):
     try: return float(s)
     except: return None
 
-def parse_pdf(path):
+def parse_pdf(path, prior=False):
+    """解析中再集团本级偿付能力 PDF。
+
+    prior=False -> 取「本季度数」列（第 1 个数字）
+    prior=True  -> 取「上季度数/期初」列（第 2 个数字），用于生成**年度（审计后）**数据
+                   （一季度报告的期初 = 上年四季度，且通常为年度审计后数）
+    """
     pages = [p.extract_text() or '' for p in pdfplumber.open(path).pages]
     main = next((t for t in pages if '综合偿付能力充足率' in t and '（万元）' in t), '')
+    IDX = 2 if prior else 1
+
+    def pick(m):
+        """按列取数：IDX=1 本季度 / IDX=2 期初。取不到该列则返回 None（不跨列兜底，避免取错列）。"""
+        g = [x for x in (m.groups() if m else ()) if x is not None]
+        return g[IDX - 1] if len(g) >= IDX else None
+
+    NUM2 = r'\s*([\d,\.\-]+)(?:\s+([\d,\.\-]+))?'
+    PCT2 = r'\s*([\d\.]+)%(?:\s+([\d\.]+)%)?'
+    YUAN2 = r'(\d{1,3}(?:,\d{3})+(?:\.\d+)?)(?:\s+(\d{1,3}(?:,\d{3})+(?:\.\d+)?))?'
+    PLAIN2 = r'(\d+(?:\.\d+)?)(?:\s+(\d+(?:\.\d+)?))?'
     rec = {}
     for f, lab in [('G', '认可资产'),
                    ('H', '认可负债'), ('I', '实际资本'), ('J', '核心一级资本'), ('K', '核心二级资本'),
                    ('L', '附属一级资本'), ('M', '附属二级资本'), ('N', '最低资本'),
                    ('O', '可资本化风险最低资本'), ('V', '控制风险最低资本')]:
-        m = re.search(lab + r'（万元）\s*([\d,\.\-]+)', main)
-        rec[f] = _num(m.group(1)) if m else None
+        m = re.search(lab + r'（万元）' + NUM2, main)
+        rec[f] = _num(pick(m)) if m else None
         if rec[f] is None:
-            m2 = re.search(r'量化风险最低资本（万元）\s*([\d,\.\-]+)', main)
-            rec[f] = _num(m2.group(1)) if m2 else None
-    # 充足率/溢额：用 实际资本/最低资本 稳健计算（避免表头格式差异，且与已入库值完全一致）
+            m2 = re.search(r'量化风险最低资本（万元）' + NUM2, main)
+            rec[f] = _num(pick(m2)) if m2 else None
+    # 溢额：直接取数（缺列再计算兜底）
+    for f, lab in [('E', '综合偿付能力溢额'), ('F', '核心偿付能力溢额')]:
+        m = re.search(lab + r'（万元）' + NUM2, main)
+        rec[f] = _num(pick(m)) if m else None
+    # 充足率：全文找标准 `xx偿付能力充足率（%）xx%`（2022Q2 第11页格式异常时会回退到第13页）
+    all_text = '\n'.join(pages)
+    for f, lab in [('C', '综合偿付能力充足率'), ('D', '核心偿付能力充足率')]:
+        m = re.search(re.escape(lab) + r'（%）' + PCT2, all_text)
+        v = pick(m)
+        if v:
+            rec[f] = round(float(v) / 100, 6)
+    # 兜底：实际资本/最低资本 计算
     if rec.get('I') and rec.get('N'):
-        rec['C'] = round(rec['I'] / rec['N'], 6)
-        rec['D'] = round((rec.get('J', 0) + rec.get('K', 0)) / rec['N'], 6)
-        rec['E'] = round(rec['I'] - rec['N'], 2)
-        rec['F'] = round((rec.get('J', 0) + rec.get('K', 0)) - rec['N'], 2)
+        if rec.get('C') is None:
+            rec['C'] = round(rec['I'] / rec['N'], 6)
+        if rec.get('D') is None:
+            rec['D'] = round((rec.get('J', 0) + rec.get('K', 0)) / rec['N'], 6)
+        if rec.get('E') is None:
+            rec['E'] = round(rec['I'] - rec['N'], 2)
+        if rec.get('F') is None:
+            rec['F'] = round((rec.get('J', 0) + rec.get('K', 0)) - rec['N'], 2)
     detail_pages = [t for t in pages if '最低资本' in t and '风险最低资本' in t and '（万元）' not in t]
     merged = re.sub(r'\s+', ' ', '\n'.join(detail_pages))
     detail_lines = [ln for t in detail_pages for ln in t.splitlines()]
@@ -94,34 +128,37 @@ def parse_pdf(path):
 
     def get_yuan(label, core=None):
         # 1) 精确标签 + 千分位
-        m = re.search(re.escape(label) + r'\D*?(\d{1,3}(?:,\d{3})+(?:\.\d+)?)', merged)
-        if m:
-            return _r(m.group(1))
+        m = re.search(re.escape(label) + r'\D*?' + YUAN2, merged)
+        v = pick(m)
+        if v:
+            return _r(v)
         # 2) 信用风险 标签变体
         alt = label.replace('信用风险-最低资本', '信用风险最低资本')
         if alt != label:
-            m = re.search(re.escape(alt) + r'\D*?(\d{1,3}(?:,\d{3})+(?:\.\d+)?)', merged)
-            if m:
-                return _r(m.group(1))
+            m = re.search(re.escape(alt) + r'\D*?' + YUAN2, merged)
+            v = pick(m)
+            if v:
+                return _r(v)
         # 3) 行级兜底（老报告长标签被截断，数字转到下一行）
         if core:
             for idx, line in enumerate(detail_lines):
                 if core in line:
                     for j in range(idx, min(idx + 3, len(detail_lines))):
-                        mm = re.search(r'(\d{1,3}(?:,\d{3})+(?:\.\d+)?)', detail_lines[j])
-                        if mm:
-                            return _r(mm.group(1))
+                        v = pick(re.search(YUAN2, detail_lines[j]))
+                        if v:
+                            return _r(v)
         # 4) 兜底：无千分位的纯数字（如 0）
-        m = re.search(re.escape(label) + r'\D*?(\d+(?:\.\d+)?)', merged)
-        if m:
-            return _r(m.group(1))
+        m = re.search(re.escape(label) + r'\D*?' + PLAIN2, merged)
+        v = pick(m)
+        if v:
+            return _r(v)
         if core:
             for idx, line in enumerate(detail_lines):
                 if core in line:
                     for j in range(idx, min(idx + 3, len(detail_lines))):
-                        mm = re.search(r'(\d+(?:\.\d+)?)', detail_lines[j])
-                        if mm:
-                            return _r(mm.group(1))
+                        v = pick(re.search(PLAIN2, detail_lines[j]))
+                        if v:
+                            return _r(v)
         return None
 
     for f, lab in [('P', '寿险业务保险风险最低资本'), ('Q', '非寿险业务保险风险最低资本'),
