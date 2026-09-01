@@ -365,7 +365,7 @@
   function kpi(lab,val,sub,color){return `<div class="kpi"><div class="lab">${lab}</div><div class="val" style="color:${color}">${val}</div><div class="sub">${sub}</div></div>`;}
   function kpi3(lab,val,stats,color){
     const chips=stats.map(s=>{
-      const cls = s[0]==='监管披露' ? 'kstat reg' : 'kstat';
+      const cls = s[0]==='监管披露' ? 'kstat reg' : s[0]==='中位' ? 'kstat med' : s[0]==='算数平均' ? 'kstat mean' : 'kstat';
       return `<span class="${cls}"><b>${s[1]}</b><i>${s[0]}</i></span>`;
     }).join('');
     return `<div class="kpi"><div class="lab">${lab}</div><div class="val" style="color:${color}">${val}</div><div class="sub stats">${chips}</div></div>`;
@@ -400,6 +400,7 @@
       grid:{left:55,right:20,top:35,bottom:55},
       xAxis:{type:'category',data:labels,axisLabel:{rotate:35}},
       yAxis:{type:'value',axisLabel:{formatter:v=>(v*100).toFixed(0)+'%'},name:'充足率'},
+      dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:8}],
       series
     });
   }
@@ -465,10 +466,11 @@
       title:{text:name+'（蓝） vs '+name.replace('充足率','排名')+'（橙·右轴）',left:0,top:4,textStyle:{fontSize:12,color:'#555',fontWeight:'normal'}},
       tooltip:{trigger:'axis'},
       legend:{data:[name,'行业排名'],top:22},
-      grid:{left:50,right:52,top:52,bottom:28},
+      grid:{left:50,right:52,top:52,bottom:40},
       xAxis:{type:'category',data:labels,axisLabel:{rotate:35,fontSize:10}},
       yAxis:[{type:'value',name:'充足率',axisLabel:{formatter:v=>(v*100).toFixed(0)+'%',fontSize:10},nameTextStyle:{fontSize:10}},
              {type:'value',name:'排名',inverse:true,min:1,max:COMPS.length,axisLabel:{fontSize:10},nameTextStyle:{fontSize:10}}],
+      dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:8}],
       series:[
         {name:name,type:'line',data:cv,symbol:'circle',symbolSize:5,lineStyle:{width:2.5,color:col},itemStyle:{color:col}},
         {name:'行业排名',type:'line',yAxisIndex:1,data:rank,symbol:'circle',symbolSize:5,lineStyle:{width:2,color:'#e67e22',type:'dashed'},itemStyle:{color:'#e67e22'}}
@@ -576,6 +578,7 @@
         {type:'value',name:'占N比例%',axisLabel:{formatter:v=>v.toFixed(0)+'%',fontSize:10},nameTextStyle:{fontSize:11}},
         {type:'value',name:'金额(万元)',axisLabel:{formatter:v=>yi(v),fontSize:10},nameTextStyle:{fontSize:11}}
       ],
+      dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:8}],
       series:[
         ...barSeries,
         {name:lineName,type:'line',data:nLine,yAxisIndex:1,
@@ -614,6 +617,7 @@
         {type:'value',name:'占N比例%',axisLabel:{formatter:v=>v.toFixed(0)+'%',fontSize:10},nameTextStyle:{fontSize:11}},
         {type:'value',name:'金额(万元)',axisLabel:{formatter:v=>yi(v),fontSize:10},nameTextStyle:{fontSize:11}}
       ],
+      dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:8}],
       series:[
         ...barSeries,
         {name:lineNameInd,type:'line',data:nLine,yAxisIndex:1,
@@ -1048,6 +1052,7 @@
       xAxis:{type:'category',data:labels,axisLabel:{rotate:35,fontSize:10}},
       yAxis:[{type:'value',name:'净资产/核心资本 %',min:0,axisLabel:{formatter:v=>v.toFixed(0)+'%'}},
               {type:'value',name:'净资产/实际资本 %',min:0,axisLabel:{formatter:v=>v.toFixed(0)+'%'}}],
+      dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:8}],
       series:[
         {name:'行业·净资产/核心资本',type:'line',data:indRatioCore,smooth:true,itemStyle:{color:'#2f6fed'},lineStyle:{width:2.2},symbol:'circle',symbolSize:4},
         {name:'行业·净资产/实际资本',type:'line',data:indRatioAct,smooth:true,itemStyle:{color:'#16a085'},lineStyle:{width:2.2},symbol:'diamond',symbolSize:4,yAxisIndex:1},
