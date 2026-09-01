@@ -648,7 +648,10 @@ def auto_run(quarter, dry, overwrite, do_deploy, rev_only=None):
         groups.setdefault((t["type"], t["quarter"]), {})[t["seg"]] = t["path"]
 
     n_solv = n_cap = n_mc = 0
-    for (typ, q), segmap in sorted(groups.items()):
+    # 处理顺序：solvency/capital 必须先于 mc——mc 要求公司已在 companies 列表
+    TYPE_ORDER = {"solvency": 0, "capital": 1, "mc": 2}
+    for (typ, q), segmap in sorted(groups.items(),
+                                   key=lambda kv: (TYPE_ORDER.get(kv[0][0], 9), kv[0][1])):
         if typ == "solvency":
             upsert_datajs(q, None, dry, overwrite, paths=segmap)
             n_solv += 1
