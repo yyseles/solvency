@@ -168,7 +168,9 @@ let REG_INDUSTRY = {"meta":{"source":"监管披露·保险业偿付能力状况�
   .cmp-table .agg td:first-child{color:var(--warn);background:#fff7e6}
   .cmp-table tr:hover td{background:#f7faff}
   .cmp-table .sub{color:var(--sub);display:none}
+  .cmp-table .co{display:none}
   .cmp-show-cap .cmp-table .sub{display:table-row}
+  .cmp-show-cap .cmp-table .co{display:table-row}
   .cmp-table .bank{background:#f3f0fb}
   .cmp-table .bank td:first-child{background:#f3f0fb}
   .cmp-table .sun{background:#fdecea}
@@ -462,7 +464,7 @@ let REG_INDUSTRY = {"meta":{"source":"监管披露·保险业偿付能力状况�
         <button data-csec="life">二、人身险</button>
         <button data-csec="property">三、财产险</button>
       </div>
-      <button class="btn" id="cmpToggleCap">展开资本明细</button>
+      <button class="btn" id="cmpToggleCap">展开明细</button>
       <button class="btn" id="cmpDownload">下载汇总(CSV)</button>
     </div>
     <div class="note" id="cmpNote" style="margin:10px 0 6px;color:var(--sub);font-size:12.5px;line-height:1.7"></div>
@@ -1916,7 +1918,7 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
       cmpCapVisible = !cmpCapVisible;
       const panel = document.getElementById('p-compare');
       panel.classList.toggle('cmp-show-cap', cmpCapVisible);
-      ct.textContent = cmpCapVisible ? '隐藏资本明细' : '展开资本明细';
+      ct.textContent = cmpCapVisible ? '隐藏明细' : '展开明细';
     };
     // 板块子Tab切换
     const cst=document.getElementById('cmpSecTabs'); if(cst) cst.querySelectorAll('button').forEach(b=>b.onclick=()=>{
@@ -2327,7 +2329,7 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
         const dispVals = (sec==='group')
           ? rawVals.filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4')).reverse()
           : [...rawVals].reverse();
-        h += '<tr class="'+cls+'"><td>'+c+'</td>';
+        h += '<tr class="co '+cls+'"><td>'+c+'</td>';
         dispVals.forEach(v=> h += '<td>'+(v==null?'':fmtCmp(v,true))+'</td>');
         h += '</tr>';
         CAP_METRICS.forEach(cmName=>{

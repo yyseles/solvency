@@ -1273,7 +1273,7 @@
       cmpCapVisible = !cmpCapVisible;
       const panel = document.getElementById('p-compare');
       panel.classList.toggle('cmp-show-cap', cmpCapVisible);
-      ct.textContent = cmpCapVisible ? '隐藏资本明细' : '展开资本明细';
+      ct.textContent = cmpCapVisible ? '隐藏明细' : '展开明细';
     };
     // 板块子Tab切换
     const cst=document.getElementById('cmpSecTabs'); if(cst) cst.querySelectorAll('button').forEach(b=>b.onclick=()=>{
@@ -1684,7 +1684,7 @@
         const dispVals = (sec==='group')
           ? rawVals.filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4')).reverse()
           : [...rawVals].reverse();
-        h += '<tr class="'+cls+'"><td>'+c+'</td>';
+        h += '<tr class="co '+cls+'"><td>'+c+'</td>';
         dispVals.forEach(v=> h += '<td>'+(v==null?'':fmtCmp(v,true))+'</td>');
         h += '</tr>';
         CAP_METRICS.forEach(cmName=>{
