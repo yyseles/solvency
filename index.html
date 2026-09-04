@@ -120,6 +120,11 @@
   .cmp-table .agg.sun td:first-child{color:#c0392b;background:#fbe2de}
   .cmp-sec{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:14px 16px;margin-bottom:16px}
   .cmp-sec-h{font-size:15px;font-weight:700;color:var(--brand);margin:2px 0 8px;padding-left:10px;border-left:4px solid var(--brand)}
+  .cmp-views{display:flex;gap:6px;flex-wrap:wrap}
+  .cmp-views button{border:1px solid var(--line);background:#fff;color:var(--sub);padding:5px 12px;
+                    border-radius:999px;cursor:pointer;font-size:12.5px;font-weight:600;transition:.15s}
+  .cmp-views button:hover{background:#eef3fe;color:var(--brand)}
+  .cmp-views button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
   .cmp-chart{width:100%;height:360px;margin-bottom:6px}
   .footer{color:var(--sub);font-size:12px;text-align:center;padding:24px}
   .segbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
@@ -419,10 +424,12 @@
           <span style="font-size:13px;color:var(--sub)">两期对比（默认最新 vs 上年末）：</span>
           <span style="font-size:12px;color:var(--sub)">期1 <select class="cmpCmpPk" data-sec="group" data-pos="A"></select></span>
           <span style="font-size:12px;color:var(--sub)">期2 <select class="cmpCmpPk" data-sec="group" data-pos="B"></select></span>
+          <span style="flex:1"></span>
+          <span class="cmp-views" data-sec="group"></span>
         </div>
         <div class="grid2" style="margin-bottom:14px">
-          <div class="card" style="margin:0;padding:12px"><h4 style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">综合充足率 · 两期对比</h4><div class="cmp-chart" id="cmpCmp2_group_C" style="height:300px"></div></div>
-          <div class="card" style="margin:0;padding:12px"><h4 style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">核心充足率 · 两期对比</h4><div class="cmp-chart" id="cmpCmp2_group_D" style="height:300px"></div></div>
+          <div class="card" style="margin:0;padding:12px"><h4 id="cmpCmp2T_group_C" style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">综合充足率 · 两期对比</h4><div class="cmp-chart" id="cmpCmp2_group_C" style="height:300px"></div></div>
+          <div class="card" style="margin:0;padding:12px"><h4 id="cmpCmp2T_group_D" style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">核心充足率 · 两期对比</h4><div class="cmp-chart" id="cmpCmp2_group_D" style="height:300px"></div></div>
         </div>
         <div class="cmp-detail" id="cmpDetail_group"></div>
       </div>
@@ -435,10 +442,12 @@
           <span style="font-size:13px;color:var(--sub)">两期对比（默认最新 vs 上年末）：</span>
           <span style="font-size:12px;color:var(--sub)">期1 <select class="cmpCmpPk" data-sec="life" data-pos="A"></select></span>
           <span style="font-size:12px;color:var(--sub)">期2 <select class="cmpCmpPk" data-sec="life" data-pos="B"></select></span>
+          <span style="flex:1"></span>
+          <span class="cmp-views" data-sec="life"></span>
         </div>
         <div class="grid2" style="margin-bottom:14px">
-          <div class="card" style="margin:0;padding:12px"><h4 style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">综合充足率 · 两期对比</h4><div class="cmp-chart" id="cmpCmp2_life_C" style="height:300px"></div></div>
-          <div class="card" style="margin:0;padding:12px"><h4 style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">核心充足率 · 两期对比</h4><div class="cmp-chart" id="cmpCmp2_life_D" style="height:300px"></div></div>
+          <div class="card" style="margin:0;padding:12px"><h4 id="cmpCmp2T_life_C" style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">综合充足率 · 两期对比</h4><div class="cmp-chart" id="cmpCmp2_life_C" style="height:300px"></div></div>
+          <div class="card" style="margin:0;padding:12px"><h4 id="cmpCmp2T_life_D" style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">核心充足率 · 两期对比</h4><div class="cmp-chart" id="cmpCmp2_life_D" style="height:300px"></div></div>
         </div>
         <div class="cmp-detail" id="cmpDetail_life"></div>
       </div>
@@ -451,10 +460,12 @@
           <span style="font-size:13px;color:var(--sub)">两期对比（默认最新 vs 上年末）：</span>
           <span style="font-size:12px;color:var(--sub)">期1 <select class="cmpCmpPk" data-sec="property" data-pos="A"></select></span>
           <span style="font-size:12px;color:var(--sub)">期2 <select class="cmpCmpPk" data-sec="property" data-pos="B"></select></span>
+          <span style="flex:1"></span>
+          <span class="cmp-views" data-sec="property"></span>
         </div>
         <div class="grid2" style="margin-bottom:14px">
-          <div class="card" style="margin:0;padding:12px"><h4 style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">综合充足率 · 两期对比</h4><div class="cmp-chart" id="cmpCmp2_property_C" style="height:300px"></div></div>
-          <div class="card" style="margin:0;padding:12px"><h4 style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">核心充足率 · 两期对比</h4><div class="cmp-chart" id="cmpCmp2_property_D" style="height:300px"></div></div>
+          <div class="card" style="margin:0;padding:12px"><h4 id="cmpCmp2T_property_C" style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">综合充足率 · 两期对比</h4><div class="cmp-chart" id="cmpCmp2_property_C" style="height:300px"></div></div>
+          <div class="card" style="margin:0;padding:12px"><h4 id="cmpCmp2T_property_D" style="margin:0 0 6px;font-size:13.5px;color:var(--sub)">核心充足率 · 两期对比</h4><div class="cmp-chart" id="cmpCmp2_property_D" style="height:300px"></div></div>
         </div>
         <div class="cmp-detail" id="cmpDetail_property"></div>
       </div>

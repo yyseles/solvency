@@ -1290,6 +1290,20 @@
       cmpCmpPeriods[sec][pos]=sel.value;
       renderSecCompare(sec);
     });
+    // 两期对比：维度切换（汇总视角 / 各家明细）
+    document.querySelectorAll('.cmp-views').forEach(box=>{
+      const sec=box.dataset.sec;
+      const views=CMP_VIEWS[sec]||[];
+      if(!views.length){ box.style.display='none'; return; }
+      box.innerHTML = views.map(v=>
+        '<button type="button" data-v="'+v.key+'"'+(v.key===cmpCmpView[sec]?' class="on"':'')+'>'+v.label+'</button>'
+      ).join('');
+      box.querySelectorAll('button').forEach(b=> b.onclick=()=>{
+        cmpCmpView[sec]=b.dataset.v;
+        box.querySelectorAll('button').forEach(x=>x.classList.toggle('on', x===b));
+        renderSecCompare(sec);
+      });
+    });
     document.getElementById('rankEvoSel').onchange=e=>{ S.rankEvo=e.target.value; renderRankEvo(); };
     document.getElementById('riskEntity').onchange=e=>{S.riskEntity=e.target.value; renderRisk();};
     document.getElementById('riskInd').onchange=e=>{S.riskInd=e.target.checked; renderRisk();};
@@ -1488,7 +1502,22 @@
   let cmpCmpPeriods = {}; // {sec:{A,B}}
   function cmpDisplayPeriods(sec){
     const periods = cmpPeriods();
-    return (sec==='group') ? periods.filter(p=> p.endsWith('Q2')||p.endsWith('Q4')) : periods;
+    // 按板块实际数据过滤：只保留该板块 dataBlock 真实存在的期次
+    // （group 半年报仅有 Q2/Q4 且当前尚未补到 26Q2，避免下拉出现无数据期次导致两期对比出 null）
+    const block = (window.CMP_CONFIG && window.CMP_CONFIG.blocks[sec]) ? window.CMP_CONFIG.blocks[sec].dataBlock : null;
+    let pool = periods;
+    if(block && typeof SOLVENCY_DATA!=='undefined' && SOLVENCY_DATA.segments[block]){
+      const seg = SOLVENCY_DATA.segments[block];
+      const has = new Set();
+      Object.values(seg.data || {}).forEach(co=> Object.keys(co).forEach(k=>{
+        let yy, q;
+        if(k.indexOf('Q')>=0){ yy=parseInt(k.slice(0,4)); q=parseInt(k.slice(5)); }
+        else { yy=parseInt(k); q=4; }
+        has.add((''+(yy-2000))+'Q'+q);
+      }));
+      pool = periods.filter(p=> has.has(p));
+    }
+    return (sec==='group') ? pool.filter(p=> p.endsWith('Q2')||p.endsWith('Q4')) : pool;
   }
   function yearOf(p){ return 2000 + parseInt(p.slice(0,2),10); }
   function qOf(p){ return parseInt(p.slice(3),10); }
@@ -1573,37 +1602,103 @@
     });
   }
 
+  // 两期对比：可切换的对比维度
+  // key='ents' 用板块汇总实体（平均口径）；其余维度 = 各家明细 + 指定的平均/阳光实体
+  const CMP_VIEWS = {
+    group: [
+      { key:'ents', label:'汇总视角' },
+      { key:'listed', label:'上市集团各家',
+        list:['平安集团','人保集团','太保集团','太平集团'],
+        extra:['上市集团加权平均','阳光集团'] }
+    ],
+    life: [
+      { key:'ents', label:'汇总视角' },
+      { key:'listed', label:'上市人身险各家',
+        list:['平安寿险','人保寿险','太保寿险','太平人寿','中国人寿','新华保险'],
+        extra:['上市人身险公司平均','阳光人寿'] },
+      { key:'bank', label:'银保系各家', bank:true, extra:['银保系平均','阳光人寿'] }
+    ],
+    property: [
+      { key:'ents', label:'汇总视角' },
+      { key:'incl', label:'各家(含众安)',
+        list:['平安产险','人保财险','太保财险','太平财险','众安财产','大地财产'],
+        extra:['上市财险平均(含众安)','阳光财险'] },
+      { key:'excl', label:'各家(不含众安)',
+        list:['平安产险','人保财险','太保财险','太平财险','大地财产'],
+        extra:['上市财险平均(不含众安)','阳光财险'] }
+    ]
+  };
+  let cmpCmpView = { group:'ents', life:'ents', property:'ents' };
+
+  // 当前维度下的柱集合：{name, ent?(实体) | company?(公司), bank?, extra?}
+  function cmpViewItems(sec, viewKey){
+    const S = window.CMP_CONFIG.blocks[sec];
+    const views = CMP_VIEWS[sec] || [];
+    const v = views.find(x=>x.key===viewKey) || views[0];
+    if(!v) return [];
+    if(v.key==='ents') return S.entities.map(e=>({ name:e.name, ent:e }));
+    const list = v.bank ? (window.CMP_CONFIG.blocks.life.lists.banks||[]) : (v.list||[]);
+    const items = list.map(c=>({ name:c, company:c, bank:!!v.bank }));
+    (v.extra||[]).forEach(n=>{
+      const e = S.entities.find(x=>x.name===n);
+      if(e) items.push({ name:e.name, ent:e, extra:true });
+    });
+    return items;
+  }
+  function cmpViewLabel(sec, viewKey){
+    const views = CMP_VIEWS[sec] || [];
+    const v = views.find(x=>x.key===viewKey) || views[0];
+    return v ? v.label : '';
+  }
+
   function renderSecCompare(sec){
     const BL = window.CMP_CONFIG.blocks;
     const S = BL[sec];
     const colors = ['#2f6fdb','#16a085','#8e44ad','#c0392b','#e67e22','#f39c12','#7f8c8d','#3498db'];
     const pA = cmpCmpPeriods[sec].A, pB = cmpCmpPeriods[sec].B;
     const zhMetrics = ['综合偿付能力充足率','核心偿付能力充足率'];
+    const items = cmpViewItems(sec, cmpCmpView[sec]);
+    // 柱色：各家用标准蓝/橙，平均与阳光实体用深蓝/深橙以区分
+    const C_A = '#2f6fdb', C_B = '#e67e22', E_A = '#14508f', E_B = '#b8620f';
+    const zhTitles = ['综合充足率 · 两期对比','核心充足率 · 两期对比'];
     zhMetrics.forEach((metric, mi)=>{
       const names = [], dataA = [], dataB = [];
-      S.entities.forEach((ent, ei)=>{
-        names.push(ent.name);
-        const va = cmpEntityValAt(ent, metric, pA), vb = cmpEntityValAt(ent, metric, pB);
-        dataA.push(va==null?null:(ent.src==='reg'?va:pctVal(va)));
-        dataB.push(vb==null?null:(ent.src==='reg'?vb:pctVal(vb)));
+      const valOf = (it, p)=>{
+        if(it.ent){
+          const v = cmpEntityValAt(it.ent, metric, p);
+          return (v==null)?null:(it.ent.src==='reg'? v : pctVal(v));
+        }
+        const m = it.bank ? cmpBankRatioMap(it.company, metric) : cmpCompanyRatioMap(it.company, S.dataBlock, metric);
+        return (m && m[p]!=null) ? pctVal(m[p]) : null;
+      };
+      items.forEach(it=>{
+        names.push(it.name);
+        const va = valOf(it, pA), vb = valOf(it, pB);
+        const ca = it.extra?E_A:C_A, cb = it.extra?E_B:C_B;
+        dataA.push({ value: va, itemStyle:{ color: ca, borderRadius:[3,3,0,0] } });
+        dataB.push({ value: vb, itemStyle:{ color: cb, borderRadius:[3,3,0,0] } });
       });
+      // 维度标题：让图名直接说明当前口径
+      const tEl = document.getElementById('cmpCmp2T_'+sec+'_'+(mi===0?'C':'D'));
+      if(tEl) tEl.textContent = zhTitles[mi]+'（'+cmpViewLabel(sec, cmpCmpView[sec])+'）';
       // 差异数据（新期-旧期）
-      const diffData = dataA.map((v,i)=> (v!=null && dataB[i]!=null) ? +(v - dataB[i]).toFixed(2) : null);
+      const diffData = dataA.map((o,i)=> (o.value!=null && dataB[i].value!=null) ? +(o.value - dataB[i].value).toFixed(2) : null);
       const barLabel = { show:true, position:'top', fontSize:10, fontWeight:600, color:'#333',
         formatter:p=> p.value!=null ? p.value.toFixed(2) : '' };
+      const many = names.length > 6;
       const option = {
         tooltip:{ trigger:'axis', valueFormatter:v=> v==null?'—':(v.toFixed(2)+'%') },
         legend:{ top:2, textStyle:{ fontSize:10 }, data:[pA,pB,'差异'] },
-        grid:{ left:58, right:50, top:36, bottom:30 },
-        xAxis:{ type:'category', data:names, axisLabel:{ fontSize:10, interval:0, rotate: names.length>4?20:0 } },
+        grid:{ left:58, right:50, top:36, bottom: many?52:30 },
+        xAxis:{ type:'category', data:names, axisLabel:{ fontSize:10, interval:0, rotate: many?30:(names.length>4?20:0) } },
         yAxis:[
           { type:'value', name:'充足率(%)', min:0, axisLabel:{ formatter:v=> (Math.round(v*10)/10) } },
           { type:'value', name:'差异(%)', min:null, axisLabel:{ formatter:v=> v.toFixed(1), color:'#c0392b' },
             axisLine:{ lineStyle:{ color:'#c0392b' } }, splitLine:{ show:false } }
         ],
         series:[
-          { name:pA, type:'bar', data:dataA, itemStyle:{ color:'#2f6fdb', borderRadius:[3,3,0,0] }, label:barLabel },
-          { name:pB, type:'bar', data:dataB, itemStyle:{ color:'#e67e22', borderRadius:[3,3,0,0] }, label:barLabel },
+          { name:pA, type:'bar', data:dataA, label:barLabel },
+          { name:pB, type:'bar', data:dataB, label:barLabel },
           { name:'差异', type:'line', yAxisIndex:1, data:diffData,
             itemStyle:{ color:'#c0392b' }, symbol:'circle', symbolSize:6,
             lineStyle:{ width:2 },
