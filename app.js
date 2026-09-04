@@ -1683,9 +1683,24 @@
       if(tEl) tEl.textContent = zhTitles[mi]+'（'+cmpViewLabel(sec, cmpCmpView[sec])+'）';
       // 差异数据（新期-旧期）
       const diffData = dataA.map((o,i)=> (o.value!=null && dataB[i].value!=null) ? +(o.value - dataB[i].value).toFixed(2) : null);
-      const barLabel = { show:true, position:'top', fontSize:10, fontWeight:600, color:'#333',
-        formatter:p=> p.value!=null ? p.value.toFixed(2) : '' };
+      // 柱子较多时（>7），双柱各自标 top 会把同位 label 撞到一起。
+      // 解决：只让**较矮那根柱**显示 "A|B" 合并标签，高柱完全不渲染 label；
+      // 矮柱标签自然位于两柱之间靠下那根的中央——视觉上就是该组柱子的中间位置。
+      // 差异折线 label 此时关闭常驻（红折线已明显，差异改 tooltip 看）。
+      const compact = names.length > 7;
       const many = names.length > 6;
+      // 对 A series：当 a 是较矮或等高那根时，显示 "A|B"，否则空
+      const fmtA = compact ? (p)=>{
+        const va=dataA[p.dataIndex].value, vb=dataB[p.dataIndex].value;
+        if(va==null) return ''; if(vb==null) return va.toFixed(0);
+        return (va<=vb) ? `${va.toFixed(0)}|${vb.toFixed(0)}` : '';
+      } : (p=> p.value!=null ? p.value.toFixed(2) : '');
+      // 对 B series：当 b 严格矮于 a 时显示，否则空；与 A 互补，绝不会同一柱顶出两次
+      const fmtB = compact ? (p)=>{
+        const va=dataA[p.dataIndex].value, vb=dataB[p.dataIndex].value;
+        if(vb==null) return ''; if(va==null) return vb.toFixed(0);
+        return (vb<va) ? `${va.toFixed(0)}|${vb.toFixed(0)}` : '';
+      } : (p=> p.value!=null ? p.value.toFixed(2) : '');
       const option = {
         tooltip:{ trigger:'axis', valueFormatter:v=> v==null?'—':(v.toFixed(2)+'%') },
         legend:{ top:2, textStyle:{ fontSize:10 }, data:[pA,pB,'差异'] },
@@ -1697,12 +1712,12 @@
             axisLine:{ lineStyle:{ color:'#c0392b' } }, splitLine:{ show:false } }
         ],
         series:[
-          { name:pA, type:'bar', data:dataA, label:barLabel },
-          { name:pB, type:'bar', data:dataB, label:barLabel },
+          { name:pA, type:'bar', data:dataA, barCategoryGap: compact?'34%':'20%', label:{ show:true, position:'top', fontSize:9, fontWeight:600, color:'#1a4480', distance:2, formatter:fmtA } },
+          { name:pB, type:'bar', data:dataB, label:{ show:true, position:'top', fontSize:9, fontWeight:600, color:'#b8620f', distance:2, formatter:fmtB } },
           { name:'差异', type:'line', yAxisIndex:1, data:diffData,
             itemStyle:{ color:'#c0392b' }, symbol:'circle', symbolSize:6,
             lineStyle:{ width:2 },
-            label:{ show:true, position:'top', fontSize:9, fontWeight:600, color:'#c0392b',
+            label:{ show:!compact, position:'top', fontSize:9, fontWeight:600, color:'#c0392b',
               formatter:p=> p.value!=null ? ((p.value>=0?'+':'')+p.value.toFixed(2)) : '' }
           }
         ]
