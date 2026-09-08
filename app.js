@@ -168,11 +168,6 @@
     if(!charts[id]){ charts[id]=echarts.init(el); if(_ro) _ro.observe(el); }
     return charts[id];
   }
-  function withToolbox(id,opt){
-    opt.toolbox = Object.assign({show:true, right:10, top:2, itemGap:8,
-      feature:{ saveAsImage:{ title:'下载图片', name:id, pixelRatio:2, backgroundColor:'#ffffff' } } }, opt.toolbox||{});
-    return opt;
-  }
   // 复制图表到剪贴板：点击右上角「复制」按钮 → PNG 写入剪贴板，可直接粘贴
   function addCopyBtn(id){
     const el=document.getElementById(id); if(!el) return;
@@ -197,7 +192,7 @@
     }
     setTimeout(()=>{ btn.textContent=old; btn.disabled=false; btn.classList.remove('ok'); },1200);
   }
-  function setOpt(id,opt){ const c=chart(id); if(!c) return; c.setOption(withToolbox(id,opt),true); addCopyBtn(id); requestAnimationFrame(()=>{ if(charts[id]) charts[id].resize(); }); }
+  function setOpt(id,opt){ const c=chart(id); if(!c) return; c.setOption(opt,true); addCopyBtn(id); requestAnimationFrame(()=>{ if(charts[id]) charts[id].resize(); }); }
   function tlSlice(){ return TL.slice(S.range[0], S.range[1]+1); }
 
   // ---------- 板块信息 ----------
@@ -1626,7 +1621,7 @@
         series
       };
       if(!cmpCharts[chartId]) cmpCharts[chartId] = echarts.init(document.getElementById(chartId));
-      cmpCharts[chartId].setOption(withToolbox(chartId, option), true);
+      cmpCharts[chartId].setOption(option, true);
       addCopyBtn(chartId);
       cmpCharts[chartId].resize();
     });
@@ -1765,7 +1760,7 @@
       };
       const chartId = 'cmpCmp2_'+sec+'_'+(mi===0?'C':'D');
       if(!cmpCharts[chartId]) cmpCharts[chartId] = echarts.init(document.getElementById(chartId));
-      cmpCharts[chartId].setOption(withToolbox(chartId, option), true);
+      cmpCharts[chartId].setOption(option, true);
       addCopyBtn(chartId);
       cmpCharts[chartId].resize();
     });
