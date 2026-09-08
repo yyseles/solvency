@@ -173,7 +173,31 @@
       feature:{ saveAsImage:{ title:'下载图片', name:id, pixelRatio:2, backgroundColor:'#ffffff' } } }, opt.toolbox||{});
     return opt;
   }
-  function setOpt(id,opt){ const c=chart(id); if(!c) return; c.setOption(withToolbox(id,opt),true); requestAnimationFrame(()=>{ if(charts[id]) charts[id].resize(); }); }
+  // 复制图表到剪贴板：点击右上角「复制」按钮 → PNG 写入剪贴板，可直接粘贴
+  function addCopyBtn(id){
+    const el=document.getElementById(id); if(!el) return;
+    if(el.querySelector('.copy-img-btn')) return;
+    if(!el.style.position) el.style.position='relative';
+    const btn=document.createElement('button');
+    btn.className='copy-img-btn'; btn.type='button'; btn.textContent='复制'; btn.title='复制图表为图片，可直接粘贴';
+    btn.addEventListener('click', ()=> copyChartImage(id, btn));
+    el.appendChild(btn);
+  }
+  async function copyChartImage(id, btn){
+    const c = charts[id] || cmpCharts[id]; if(!c) return;
+    const old=btn.textContent; btn.disabled=true;
+    const url = c.getDataURL({type:'png', pixelRatio:2, backgroundColor:'#ffffff'});
+    try{
+      const blob = await (await fetch(url)).blob();
+      await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+      btn.textContent='已复制 ✓'; btn.classList.add('ok');
+    }catch(e){
+      const a=document.createElement('a'); a.href=url; a.download=id+'.png'; a.click();
+      btn.textContent='已下载'; 
+    }
+    setTimeout(()=>{ btn.textContent=old; btn.disabled=false; btn.classList.remove('ok'); },1200);
+  }
+  function setOpt(id,opt){ const c=chart(id); if(!c) return; c.setOption(withToolbox(id,opt),true); addCopyBtn(id); requestAnimationFrame(()=>{ if(charts[id]) charts[id].resize(); }); }
   function tlSlice(){ return TL.slice(S.range[0], S.range[1]+1); }
 
   // ---------- 板块信息 ----------
@@ -1603,6 +1627,7 @@
       };
       if(!cmpCharts[chartId]) cmpCharts[chartId] = echarts.init(document.getElementById(chartId));
       cmpCharts[chartId].setOption(withToolbox(chartId, option), true);
+      addCopyBtn(chartId);
       cmpCharts[chartId].resize();
     });
   }
@@ -1741,6 +1766,7 @@
       const chartId = 'cmpCmp2_'+sec+'_'+(mi===0?'C':'D');
       if(!cmpCharts[chartId]) cmpCharts[chartId] = echarts.init(document.getElementById(chartId));
       cmpCharts[chartId].setOption(withToolbox(chartId, option), true);
+      addCopyBtn(chartId);
       cmpCharts[chartId].resize();
     });
   }

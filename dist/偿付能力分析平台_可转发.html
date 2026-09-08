@@ -183,6 +183,10 @@ let REG_INDUSTRY = {"meta":{"source":"监管披露·保险业偿付能力状况�
   .cmp-views button{border:1px solid var(--line);background:#fff;color:var(--sub);padding:5px 12px;
                     border-radius:999px;cursor:pointer;font-size:12.5px;font-weight:600;transition:.15s}
   .cmp-views button:hover{background:#eef3fe;color:var(--brand)}
+  .copy-img-btn{position:absolute;top:4px;right:32px;z-index:5;border:1px solid var(--line);background:rgba(255,255,255,.9);
+                color:var(--sub);padding:1px 8px;border-radius:5px;font-size:11px;cursor:pointer;line-height:1.6}
+  .copy-img-btn:hover{color:var(--brand);border-color:var(--brand);background:#eef3fe}
+  .copy-img-btn.ok{color:#1a7f37;border-color:#1a7f37}
   .cmp-views button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
   .cmp-chart{width:100%;height:360px;margin-bottom:6px}
   .footer{color:var(--sub);font-size:12px;text-align:center;padding:24px}
@@ -829,7 +833,31 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
       feature:{ saveAsImage:{ title:'下载图片', name:id, pixelRatio:2, backgroundColor:'#ffffff' } } }, opt.toolbox||{});
     return opt;
   }
-  function setOpt(id,opt){ const c=chart(id); if(!c) return; c.setOption(withToolbox(id,opt),true); requestAnimationFrame(()=>{ if(charts[id]) charts[id].resize(); }); }
+  // 复制图表到剪贴板：点击右上角「复制」按钮 → PNG 写入剪贴板，可直接粘贴
+  function addCopyBtn(id){
+    const el=document.getElementById(id); if(!el) return;
+    if(el.querySelector('.copy-img-btn')) return;
+    if(!el.style.position) el.style.position='relative';
+    const btn=document.createElement('button');
+    btn.className='copy-img-btn'; btn.type='button'; btn.textContent='复制'; btn.title='复制图表为图片，可直接粘贴';
+    btn.addEventListener('click', ()=> copyChartImage(id, btn));
+    el.appendChild(btn);
+  }
+  async function copyChartImage(id, btn){
+    const c = charts[id] || cmpCharts[id]; if(!c) return;
+    const old=btn.textContent; btn.disabled=true;
+    const url = c.getDataURL({type:'png', pixelRatio:2, backgroundColor:'#ffffff'});
+    try{
+      const blob = await (await fetch(url)).blob();
+      await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+      btn.textContent='已复制 ✓'; btn.classList.add('ok');
+    }catch(e){
+      const a=document.createElement('a'); a.href=url; a.download=id+'.png'; a.click();
+      btn.textContent='已下载'; 
+    }
+    setTimeout(()=>{ btn.textContent=old; btn.disabled=false; btn.classList.remove('ok'); },1200);
+  }
+  function setOpt(id,opt){ const c=chart(id); if(!c) return; c.setOption(withToolbox(id,opt),true); addCopyBtn(id); requestAnimationFrame(()=>{ if(charts[id]) charts[id].resize(); }); }
   function tlSlice(){ return TL.slice(S.range[0], S.range[1]+1); }
 
   // ---------- 板块信息 ----------
@@ -2259,6 +2287,7 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
       };
       if(!cmpCharts[chartId]) cmpCharts[chartId] = echarts.init(document.getElementById(chartId));
       cmpCharts[chartId].setOption(withToolbox(chartId, option), true);
+      addCopyBtn(chartId);
       cmpCharts[chartId].resize();
     });
   }
@@ -2397,6 +2426,7 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
       const chartId = 'cmpCmp2_'+sec+'_'+(mi===0?'C':'D');
       if(!cmpCharts[chartId]) cmpCharts[chartId] = echarts.init(document.getElementById(chartId));
       cmpCharts[chartId].setOption(withToolbox(chartId, option), true);
+      addCopyBtn(chartId);
       cmpCharts[chartId].resize();
     });
   }
