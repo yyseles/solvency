@@ -1684,8 +1684,7 @@
       // 差异数据（新期-旧期）
       const diffData = dataA.map((o,i)=> (o.value!=null && dataB[i].value!=null) ? +(o.value - dataB[i].value).toFixed(2) : null);
       // 柱子较多时（>7），双柱各自标 top 会把同位 label 撞到一起。
-      // 解决：只让**较矮那根柱**显示 "A|B" 合并标签（整数），高柱完全不渲染 label；
-      // 差异折线 label 始终常驻，但挂在折线点下方（position:'bottom'），与柱顶标签分层错开。
+      // 解决：只让**较矮那根柱**显示 "A|B" 合并标签（整数），高柱完全不渲染 label。
       const compact = names.length > 7;
       const many = names.length > 6;
       // 对 A series：当 a 是较矮或等高那根时，显示 "A|B"，否则空（全部取整数）
@@ -1702,6 +1701,13 @@
       } : (p=> p.value!=null ? p.value.toFixed(0) : '');
       // 横轴长名（如"上市集团加权平均"）旋转会溢出截断 → 改为每4字换行、不旋转
       const wrapAxis = v=> (v.length>4 ? v.replace(/(.{4})/g,'$1\n') : v);
+      // 差异折线专属高层带：把折线从柱顶标签区里剥离，从映射上杜绝遮挡。
+      // 做法：①主轴 max=柱最大值×1.3，柱顶压缩到 ≤76% 高度（含标签）；②右轴 min=-7R/max=1.15R
+      // （R=最大|差异|），折线被压到 ~74%~98% 高度带，标签挂点下方，基本落在柱标签区之上。
+      const diffs = diffData.filter(v=>v!=null);
+      const R = diffs.length ? Math.max(...diffs.map(Math.abs), 1) : 1;
+      const barVals = dataA.concat(dataB).map(o=>o.value).filter(v=>v!=null);
+      const barMax = barVals.length ? Math.max(...barVals) : 100;
       const option = {
         tooltip:{ trigger:'axis', valueFormatter:v=> v==null?'—':(v.toFixed(2)+'%') },
         legend:{ top:2, textStyle:{ fontSize:10 }, data:[pA,pB,'差异'] },
@@ -1709,8 +1715,10 @@
         xAxis:{ type:'category', data:names,
           axisLabel:{ fontSize:10, interval:0, rotate:0, formatter:wrapAxis, lineHeight:12, margin:8 } },
         yAxis:[
-          { type:'value', name:'充足率(%)', min:0, axisLabel:{ formatter:v=> (Math.round(v*10)/10) } },
-          { type:'value', name:'差异(%)', min:null, axisLabel:{ formatter:v=> v.toFixed(1), color:'#c0392b' },
+          { type:'value', name:'充足率(%)', min:0, max: Math.ceil(barMax*1.3),
+            axisLabel:{ formatter:v=> (Math.round(v*10)/10) } },
+          { type:'value', name:'差异(%)', min:-7*R, max:1.15*R,
+            axisLabel:{ formatter:v=> v.toFixed(0), color:'#c0392b' },
             axisLine:{ lineStyle:{ color:'#c0392b' } }, splitLine:{ show:false } }
         ],
         series:[
@@ -1719,8 +1727,9 @@
           { name:'差异', type:'line', yAxisIndex:1, data:diffData,
             itemStyle:{ color:'#c0392b' }, symbol:'circle', symbolSize:6,
             lineStyle:{ width:2 },
-            label:{ show:true, position:'bottom', fontSize:9, fontWeight:600, color:'#c0392b', distance:4,
-              formatter:p=> p.value!=null ? ((p.value>=0?'+':'')+p.value.toFixed(2)) : '' }
+            label:{ show:true, position:'bottom', fontSize:9, fontWeight:600, color:'#c0392b', distance:3,
+              textBorderColor:'#fff', textBorderWidth:2,
+              formatter:p=> p.value!=null ? ((p.value>=0?'+':'')+p.value.toFixed(0)) : '' }
           }
         ]
       };
