@@ -168,7 +168,12 @@
     if(!charts[id]){ charts[id]=echarts.init(el); if(_ro) _ro.observe(el); }
     return charts[id];
   }
-  function setOpt(id,opt){ const c=chart(id); if(!c) return; c.setOption(opt,true); requestAnimationFrame(()=>{ if(charts[id]) charts[id].resize(); }); }
+  function withToolbox(id,opt){
+    opt.toolbox = Object.assign({show:true, right:10, top:2, itemGap:8,
+      feature:{ saveAsImage:{ title:'下载图片', name:id, pixelRatio:2, backgroundColor:'#ffffff' } } }, opt.toolbox||{});
+    return opt;
+  }
+  function setOpt(id,opt){ const c=chart(id); if(!c) return; c.setOption(withToolbox(id,opt),true); requestAnimationFrame(()=>{ if(charts[id]) charts[id].resize(); }); }
   function tlSlice(){ return TL.slice(S.range[0], S.range[1]+1); }
 
   // ---------- 板块信息 ----------
@@ -1597,7 +1602,7 @@
         series
       };
       if(!cmpCharts[chartId]) cmpCharts[chartId] = echarts.init(document.getElementById(chartId));
-      cmpCharts[chartId].setOption(option, true);
+      cmpCharts[chartId].setOption(withToolbox(chartId, option), true);
       cmpCharts[chartId].resize();
     });
   }
@@ -1735,7 +1740,7 @@
       };
       const chartId = 'cmpCmp2_'+sec+'_'+(mi===0?'C':'D');
       if(!cmpCharts[chartId]) cmpCharts[chartId] = echarts.init(document.getElementById(chartId));
-      cmpCharts[chartId].setOption(option, true);
+      cmpCharts[chartId].setOption(withToolbox(chartId, option), true);
       cmpCharts[chartId].resize();
     });
   }
