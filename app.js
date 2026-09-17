@@ -1806,7 +1806,8 @@
           h += '<td>'+(isRegPct ? (parseFloat(v).toFixed(2)+'%') : fmtCmp(v,true))+'</td>';
         });
         h += '</tr>';
-        if(ent.src!=='reg'){
+        // 资本子行只在「综合」段输出一次，核心段不再重复
+        if(mi===0 && ent.src!=='reg'){
           CAP_METRICS.forEach(cmName=>{
             const cArr = capArr(ent, cmName);
             const dispCArr = (sec==='group')
@@ -1834,7 +1835,7 @@
         h += '<tr class="co '+cls+'"><td>'+c+'</td>';
         dispVals.forEach(v=> h += '<td>'+(v==null?'':fmtCmp(v,true))+'</td>');
         h += '</tr>';
-        CAP_METRICS.forEach(cmName=>{
+        if(mi===0) CAP_METRICS.forEach(cmName=>{
           const cVals = isBank
             ? cmpBankAmtMap(c, cmName)
             : cmpCompanyAmtMap(c, S.dataBlock, cmName);
