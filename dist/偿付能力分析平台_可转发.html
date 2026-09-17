@@ -168,6 +168,8 @@ let REG_INDUSTRY = {"meta":{"source":"监管披露·保险业偿付能力状况�
   .cmp-table .agg td:first-child{color:var(--warn);background:#fff7e6}
   .cmp-table tr:hover td{background:#f7faff}
   .cmp-table .sub{color:var(--sub);display:none}
+  .cmp-table .subhd{font-weight:700;color:var(--brand);font-size:12.5px;background:#f6f9fe}
+  .cmp-table .subhd td:first-child{background:#f6f9fe}
   .cmp-table .co{display:none}
   .cmp-show-cap .cmp-table .sub{display:table-row}
   .cmp-show-cap .cmp-table .co{display:table-row}
@@ -2449,38 +2451,28 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
       return !entityCompanyNames.has(c);
     });
 
-    // 综合放一起、核心放一起（每段输出指标名标题行）
-    zhMetrics.forEach((metric, mi) => {
+    // 期次过滤：group 板块只看 Q2/Q4，倒序最新在前
+    const dispOf = arr => (sec==='group')
+      ? arr.filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4')).reverse()
+      : [...arr].reverse();
+
+    // 段1/段2：综合、核心充足率（纯比率行）
+    zhMetrics.forEach(metric=>{
       h += '<tr class="blk"><td colspan="'+(revPeriods.length+1)+'">'+metric+'</td></tr>';
 
-      // 实体行（含资本子行）
+      // 实体行
       S.entities.forEach(ent=>{
-        const arr = entityArr(ent, metric);
         const isRegPct = (ent.src==='reg');
-        const dispArr = (sec==='group')
-          ? arr.filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4')).reverse()
-          : [...arr].reverse();
+        const dispArr = dispOf(entityArr(ent, metric));
         h += '<tr class="agg"><td>'+ent.name+'</td>';
         dispArr.forEach(v=> {
           if(v==null){ h+='<td></td>'; return; }
           h += '<td>'+(isRegPct ? (parseFloat(v).toFixed(2)+'%') : fmtCmp(v,true))+'</td>';
         });
         h += '</tr>';
-        // 资本子行只在「综合」段输出一次，核心段不再重复
-        if(mi===0 && ent.src!=='reg'){
-          CAP_METRICS.forEach(cmName=>{
-            const cArr = capArr(ent, cmName);
-            const dispCArr = (sec==='group')
-              ? cArr.filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4')).reverse()
-              : [...cArr].reverse();
-            h += '<tr class="sub"><td style="padding-left:22px;color:var(--sub);font-size:12px">└ '+cmName+'(亿元)</td>';
-            dispCArr.forEach(v=> h += '<td>'+(v==null?'':fmtCmp(v,false))+'</td>');
-            h += '</tr>';
-          });
-        }
       });
 
-      // 公司明细行（含资本子行）
+      // 公司明细行
       filteredCompanies.forEach(item=>{
         const c = item.name || item;
         const isBank = item.isBank || false;
@@ -2488,25 +2480,35 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
         const rVals = isBank
           ? cmpBankRatioMap(c, metric)
           : cmpCompanyRatioMap(c, S.dataBlock, metric);
-        const rawVals = periods.map(p=> rVals[p]);
-        const dispVals = (sec==='group')
-          ? rawVals.filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4')).reverse()
-          : [...rawVals].reverse();
+        const dispVals = dispOf(periods.map(p=> rVals[p]));
         h += '<tr class="co '+cls+'"><td>'+c+'</td>';
         dispVals.forEach(v=> h += '<td>'+(v==null?'':fmtCmp(v,true))+'</td>');
         h += '</tr>';
-        if(mi===0) CAP_METRICS.forEach(cmName=>{
-          const cVals = isBank
-            ? cmpBankAmtMap(c, cmName)
-            : cmpCompanyAmtMap(c, S.dataBlock, cmName);
-          const rawCVals = periods.map(p=> cVals[p]);
-          const dispCVals = (sec==='group')
-            ? rawCVals.filter((v,i)=> periods[i].endsWith('Q2')||periods[i].endsWith('Q4')).reverse()
-            : [...rawCVals].reverse();
-          h += '<tr class="sub'+(cls?' '+cls:'')+'"><td style="padding-left:22px;color:var(--sub);font-size:12px">└ '+cmName+'(亿元)</td>';
-          dispCVals.forEach(v=> h += '<td>'+(v==null?'':fmtCmp(v,false))+'</td>');
-          h += '</tr>';
-        });
+      });
+    });
+
+    // 段3：资本明细（实际/核心/附属/最低 各一组，组内实体+公司）
+    h += '<tr class="blk"><td colspan="'+(revPeriods.length+1)+'">资本明细(亿元)</td></tr>';
+    CAP_METRICS.forEach(cmName=>{
+      h += '<tr class="sub subhd"><td style="padding-left:12px">└ '+cmName+'</td></tr>';
+      S.entities.forEach(ent=>{
+        if(ent.src==='reg') return;   // 监管披露口径无资本数据
+        const dispCArr = dispOf(capArr(ent, cmName));
+        h += '<tr class="sub agg"><td style="padding-left:22px">'+ent.name+'</td>';
+        dispCArr.forEach(v=> h += '<td>'+(v==null?'':fmtCmp(v,false))+'</td>');
+        h += '</tr>';
+      });
+      filteredCompanies.forEach(item=>{
+        const c = item.name || item;
+        const isBank = item.isBank || false;
+        const cls = (c.indexOf('阳光')>=0) ? 'sun' : (isBank ? 'bank' : '');
+        const cVals = isBank
+          ? cmpBankAmtMap(c, cmName)
+          : cmpCompanyAmtMap(c, S.dataBlock, cmName);
+        const dispCVals = dispOf(periods.map(p=> cVals[p]));
+        h += '<tr class="sub co'+(cls?' '+cls:'')+'"><td style="padding-left:22px">'+c+'</td>';
+        dispCVals.forEach(v=> h += '<td>'+(v==null?'':fmtCmp(v,false))+'</td>');
+        h += '</tr>';
       });
     });
 
