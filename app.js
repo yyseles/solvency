@@ -1751,8 +1751,9 @@
           { name:pB, type:'bar', data:dataB, label:{ show:true, position:'top', fontSize:9, fontWeight:600, color:'#b8620f', distance:2, formatter:fmtB } },
           { name:'差异', type:'scatter', yAxisIndex:1, data:diffData,
             itemStyle:{ color:'#c0392b' }, symbol:'circle', symbolSize:6,
-            label:{ show:true, position:'top', fontSize:9, fontWeight:600, color:'#c0392b', distance:4,
-              textBorderColor:'#fff', textBorderWidth:2,
+            label:{ show:true, position:'top', fontSize:9, fontWeight:700, color:'#c0392b', distance:5,
+              backgroundColor:'#fdecea', borderColor:'#e8a29b', borderWidth:1, borderRadius:4,
+              padding:[2,4],
               formatter:p=> p.value!=null ? ((p.value>=0?'+':'')+p.value.toFixed(0)) : '' }
           }
         ]
