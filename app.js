@@ -1741,17 +1741,16 @@
           axisLabel:{ fontSize:10, interval:0, rotate:0, formatter:wrapAxis, lineHeight:12, margin:8 } },
         yAxis:[
           { type:'value', name:'充足率(%)', min:0, max: Math.ceil(barMax*1.3),
-            axisLabel:{ formatter:v=> (Math.round(v*10)/10) } },
+            axisLabel:{ show:false }, axisLine:{ show:false },
+            splitLine:{ show:false } },
           { type:'value', name:'差异(%)', min:-7*R, max:1.45*R,
-            axisLabel:{ formatter:v=> v.toFixed(0), color:'#c0392b' },
-            axisLine:{ lineStyle:{ color:'#c0392b' } }, splitLine:{ show:false } }
+            axisLabel:{ show:false }, axisLine:{ show:false }, splitLine:{ show:false } }
         ],
         series:[
           { name:pA, type:'bar', data:dataA, barCategoryGap: compact?'34%':'20%', label:{ show:true, position:'top', fontSize:9, fontWeight:600, color:'#1a4480', distance:2, formatter:fmtA } },
           { name:pB, type:'bar', data:dataB, label:{ show:true, position:'top', fontSize:9, fontWeight:600, color:'#b8620f', distance:2, formatter:fmtB } },
-          { name:'差异', type:'line', yAxisIndex:1, data:diffData,
+          { name:'差异', type:'scatter', yAxisIndex:1, data:diffData,
             itemStyle:{ color:'#c0392b' }, symbol:'circle', symbolSize:6,
-            lineStyle:{ width:2 },
             label:{ show:true, position:'top', fontSize:9, fontWeight:600, color:'#c0392b', distance:4,
               textBorderColor:'#fff', textBorderWidth:2,
               formatter:p=> p.value!=null ? ((p.value>=0?'+':'')+p.value.toFixed(0)) : '' }
