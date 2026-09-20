@@ -1727,9 +1727,8 @@
       // 横轴长名（如"上市集团加权平均"）旋转会溢出截断 → 改为每4字换行、不旋转
       const wrapAxis = v=> (v.length>4 ? v.replace(/(.{4})/g,'$1\n') : v);
       // 差异折线专属高层带：把折线从柱顶标签区里剥离，从映射上杜绝遮挡。
-      // 做法：①主轴 max=柱最大值×1.95，柱顶（含标签）压缩到 ≤51% 高度；
-      // ②右轴范围 [ -0.4R, 1.45R ]（R=最大|差异|），最深负差异也映射在 ≈78% 高度，
-      //    正差异与标签均落 78%~100% 顶部窄带，彻底高于柱标签区，复制图片来源清晰不重叠。
+      // 做法：①主轴 max=柱最大值×1.3，柱顶压缩到 ≤76% 高度（含标签）；②右轴 min=-7R/max=1.15R
+      // （R=最大|差异|），折线被压到 ~74%~98% 高度带，标签挂点下方，基本落在柱标签区之上。
       const diffs = diffData.filter(v=>v!=null);
       const R = diffs.length ? Math.max(...diffs.map(Math.abs), 1) : 1;
       const barVals = dataA.concat(dataB).map(o=>o.value).filter(v=>v!=null);
@@ -1741,9 +1740,9 @@
         xAxis:{ type:'category', data:names,
           axisLabel:{ fontSize:10, interval:0, rotate:0, formatter:wrapAxis, lineHeight:12, margin:8 } },
         yAxis:[
-          { type:'value', name:'充足率(%)', min:0, max: Math.ceil(barMax*1.95),
+          { type:'value', name:'充足率(%)', min:0, max: Math.ceil(barMax*1.3),
             axisLabel:{ formatter:v=> (Math.round(v*10)/10) } },
-          { type:'value', name:'差异(%)', min:-0.4*R, max:1.45*R,
+          { type:'value', name:'差异(%)', min:-7*R, max:1.45*R,
             axisLabel:{ formatter:v=> v.toFixed(0), color:'#c0392b' },
             axisLine:{ lineStyle:{ color:'#c0392b' } }, splitLine:{ show:false } }
         ],
