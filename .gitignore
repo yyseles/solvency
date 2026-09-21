@@ -10,3 +10,6 @@ _axis_audit/
 _verify_*.mjs
 _verify_*.js
 _debug_*.mjs
+
+# 用户原始数据（不入库）— data/ 下复核Excel
+data/*.xlsx
