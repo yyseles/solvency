@@ -912,8 +912,8 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
     const bads=sl.map(k=>{let b=0;for(const cc of COMPS){const st=statusOf(cc,k); if(st==='bad'||st==='nodata')b++;}return b;});
     setOpt('ovComp',{
       tooltip:{trigger:'axis'}, legend:{data:['达标率%','风险公司数（含未披露公司）'],top:0},
-      grid:{left:50,right:55,top:35,bottom:58},
-      xAxis:{type:'category',data:labels,axisLabel:{rotate:35,interval:0}},
+      grid:{left:50,right:55,top:35,bottom:64},
+      xAxis:{type:'category',data:labels,axisLabel:{rotate:45,interval:0}},
       yAxis:[{type:'value',name:'达标率%',max:100,min:0},{type:'value',name:'家',min:0}],
       series:[
         {name:'达标率%',type:'line',smooth:true,data:rates,areaStyle:{opacity:.12},itemStyle:{color:'#27ae60'},lineStyle:{width:2.5}},
@@ -1417,9 +1417,10 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
     setOpt('riskCapPieCmp',{
       tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:v=>v==null?'—':v.toFixed(2)+'%'},
       legend:{data:['公司占比','行业占比'],top:0},
-      grid:{left:92,right:30,top:35,bottom:30},
+      grid:{left:118,right:30,top:35,bottom:30},
       xAxis:{type:'value',name:'占比%',axisLabel:{formatter:v=>v.toFixed(0)+'%'}},
-      yAxis:{type:'category',data:cats,axisLabel:{fontSize:11,interval:0}},
+      yAxis:{type:'category',data:cats,axisLabel:{fontSize:11,interval:0,
+        formatter:v=> [...v].length>9 ? v.replace(/(.{9})/g,'$1\n') : v, lineHeight:13}},
       series:[
         {name:'公司占比',type:'bar',data:compData.map((v,i)=>({value:v,itemStyle:{color:colors[i]}}))},
         {name:'行业占比',type:'bar',data:indData,itemStyle:{color:'#cfd8e3'}}
@@ -1545,9 +1546,10 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
     setOpt(targetId||'equityPieCmp',{
       tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:v=>v==null?'—':v.toFixed(2)+'%'},
       legend:{data:['公司占比','行业占比'],top:0},
-      grid:{left:80,right:30,top:35,bottom:30},
+      grid:{left:88,right:30,top:35,bottom:30},
       xAxis:{type:'value',name:'占比%',axisLabel:{formatter:v=>v.toFixed(0)+'%'}},
-      yAxis:{type:'category',data:cats},
+      yAxis:{type:'category',data:cats,axisLabel:{fontSize:11,interval:0,
+        formatter:v=> [...v].length>8 ? v.replace(/(.{8})/g,'$1\n') : v, lineHeight:13}},
       series:[
         {name:'公司占比',type:'bar',data:compData,itemStyle:{color:'#2f6fed'}},
         {name:'行业占比',type:'bar',data:indData,itemStyle:{color:'#cfd8e3'}}
@@ -2387,8 +2389,24 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
         if(vb==null) return ''; if(va==null) return vb.toFixed(0);
         return (vb<va) ? `${va.toFixed(0)}|${vb.toFixed(0)}` : '';
       } : (p=> p.value!=null ? p.value.toFixed(0) : '');
-      // 横轴长名（如"上市集团加权平均"）旋转会溢出截断 → 改为每4字换行、不旋转
-      const wrapAxis = v=> (v.length>4 ? v.replace(/(.{4})/g,'$1\n') : v);
+      // 横轴长名（如"上市集团加权平均"）旋转会溢出截断 → 改为语义化换行、不旋转
+      // 断行策略：优先把 "(口径)" 尾部分离并独立成行，主名部分每6字断行，
+      // 避免 "XXX加权平均(监管口径)" 括号尾巴残行、碎片单字行等难看排版。
+      const lineOf = (v)=>{ const a=[...v]; if(a.length<=6) return [v];
+        const out=[]; for(let i=0;i<a.length;i+=6) out.push(a.slice(i,i+6).join('')); return out; };
+      const splitPair = (n)=>{
+        const m = String(n).match(/^(.*?)(\([^)]*\))?$/);
+        const head = m?(m[1]||''):'', tail = (m&&m[2])||'';
+        let lines = head ? lineOf(head) : [];
+        if(tail) lines = lines.concat(lineOf(tail));
+        return lines.length?lines:[String(n)];
+      };
+      const lineCountOf = n=> splitPair(n).length;
+      const wrapAxis = v=> splitPair(v).join('\n');
+      // 横轴所需底部空间：按最长实体的实际换行行数动态计算（与 wrapAxis 同一算法，保证高度一致），避免长名显示不全
+      const maxLines = names.reduce((m,n)=> Math.max(m, lineCountOf(n)), 1);
+      const needBottom = Math.max(34, maxLines*14 + 6); // 每行14px(含行距) + 6 边距
+      const cBottom = many ? Math.max(60, needBottom) : needBottom;
       // 差异折线专属高层带：把折线从柱顶标签区里剥离，从映射上杜绝遮挡。
       // 做法：①主轴 max=柱最大值×1.3，柱顶压缩到 ≤76% 高度（含标签）；②右轴 min=-7R/max=1.15R
       // （R=最大|差异|），折线被压到 ~74%~98% 高度带，标签挂点下方，基本落在柱标签区之上。
@@ -2399,7 +2417,7 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
       const option = {
         tooltip:{ trigger:'axis', valueFormatter:v=> v==null?'—':(v.toFixed(2)+'%') },
         legend:{ top:2, textStyle:{ fontSize:10 }, data:[pA,pB,'差异'] },
-        grid:{ left:58, right:50, top:36, bottom: many?56:40 },
+        grid:{ left:58, right:50, top:36, bottom: cBottom },
         xAxis:{ type:'category', data:names,
           axisLabel:{ fontSize:10, interval:0, rotate:0, formatter:wrapAxis, lineHeight:12, margin:8 } },
         yAxis:[
