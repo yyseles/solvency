@@ -250,8 +250,8 @@
     const bads=sl.map(k=>{let b=0;for(const cc of COMPS){const st=statusOf(cc,k); if(st==='bad'||st==='nodata')b++;}return b;});
     setOpt('ovComp',{
       tooltip:{trigger:'axis'}, legend:{data:['达标率%','风险公司数（含未披露公司）'],top:0},
-      grid:{left:50,right:55,top:35,bottom:64},
-      xAxis:{type:'category',data:labels,axisLabel:{rotate:45,interval:0}},
+      grid:{left:50,right:55,top:35,bottom:58},
+      xAxis:{type:'category',data:labels,axisLabel:{rotate:45,interval:0,fontSize:9,lineHeight:11}},
       yAxis:[{type:'value',name:'达标率%',max:100,min:0},{type:'value',name:'家',min:0}],
       series:[
         {name:'达标率%',type:'line',smooth:true,data:rates,areaStyle:{opacity:.12},itemStyle:{color:'#27ae60'},lineStyle:{width:2.5}},
@@ -1156,13 +1156,15 @@
     if(prevK){
       const drop=COMPS.map(c=>{const r=DATA[c][k],pr=DATA[c][prevK]; if(!r||!pr||r.C==null||pr.C==null) return null; return {c,d:(r.C-pr.C)*100};})
                       .filter(x=>x).sort((a,b)=>a.d-b.d).slice(0,15).reverse();
+      // 按最大|变动值|留出余量，确保横向条形最右端的数值标签不溢出被截断
+      const maxAbs=drop.reduce((m,x)=>Math.max(m,Math.abs(x.d)),0)||1;
       setOpt('alertDrop',{
         tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:v=>v.toFixed(1)+'pp'},
-        grid:{left:90,right:30,top:15,bottom:30},
-        xAxis:{type:'value',axisLabel:{formatter:'{value}pp'}},
+        grid:{left:96,right:64,top:15,bottom:30},
+        xAxis:{type:'value',min:-maxAbs*1.35,max:maxAbs*1.35,axisLabel:{formatter:'{value}pp'}},
         yAxis:{type:'category',data:drop.map(x=>x.c),axisLabel:{fontSize:11}},
         series:[{type:'bar',data:drop.map(x=>({value:x.d,itemStyle:{color:x.d<0?'#e74c3c':'#27ae60'}})),barWidth:'62%',
-          label:{show:true,position:'right',formatter:p=>p.value.toFixed(1)}}]
+          label:{show:true,position:'right',distance:6,formatter:p=>p.value.toFixed(1)}}]
       });
     } else { setOpt('alertDrop',{title:{text:'无上一可比时点',left:'center',top:'middle',textStyle:{color:'#999'}}}); }
   }
