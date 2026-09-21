@@ -912,8 +912,8 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
     const bads=sl.map(k=>{let b=0;for(const cc of COMPS){const st=statusOf(cc,k); if(st==='bad'||st==='nodata')b++;}return b;});
     setOpt('ovComp',{
       tooltip:{trigger:'axis'}, legend:{data:['达标率%','风险公司数（含未披露公司）'],top:0},
-      grid:{left:50,right:55,top:35,bottom:30},
-      xAxis:{type:'category',data:labels,axisLabel:{rotate:35}},
+      grid:{left:50,right:55,top:35,bottom:58},
+      xAxis:{type:'category',data:labels,axisLabel:{rotate:35,interval:0}},
       yAxis:[{type:'value',name:'达标率%',max:100,min:0},{type:'value',name:'家',min:0}],
       series:[
         {name:'达标率%',type:'line',smooth:true,data:rates,areaStyle:{opacity:.12},itemStyle:{color:'#27ae60'},lineStyle:{width:2.5}},
@@ -1040,8 +1040,9 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
       setOpt(id,{
         tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:v=>(v==null?'-':v.toFixed(1)+'%')},
         legend:{data:legend, top:0, type:'scroll', textStyle:{fontSize:10}},
-        grid:{left:55,right:18,top:50,bottom:30},
-        xAxis:{type:'category',data:['综合偿付能力充足率','核心偿付能力充足率']},
+        grid:{left:55,right:18,top:50,bottom:52},
+        xAxis:{type:'category',data:['综合偿付能力充足率','核心偿付能力充足率'],
+          axisLabel:{interval:0, formatter:v=> v.replace('偿付能力充足率','\n偿付能力充足率') , lineHeight:14, margin:10}},
         yAxis:{type:'value',name:'充足率%',axisLabel:{formatter:v=>v+'%'}},
         series
       });
@@ -1083,8 +1084,8 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
     setOpt(id,{
       tooltip:{trigger:'axis',valueFormatter:v=>(v==null?'-':(v*100).toFixed(1)+'%')},
       legend:{data:series.map(s=>s.name).filter(n=>n!=='达标线'),top:0,type:'scroll'},
-      grid:{left:55,right:20,top:35,bottom:55},
-      xAxis:{type:'category',data:labels,axisLabel:{rotate:35}},
+      grid:{left:55,right:20,top:35,bottom:60},
+      xAxis:{type:'category',data:labels,axisLabel:{rotate:35,interval:0}},
       yAxis:{type:'value',axisLabel:{formatter:v=>(v*100).toFixed(0)+'%'},name:'充足率'},
       dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:8}],
       series
@@ -1152,8 +1153,8 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
       title:{text:name+'（蓝） vs '+name.replace('充足率','排名')+'（橙·右轴）',left:0,top:4,textStyle:{fontSize:12,color:'#555',fontWeight:'normal'}},
       tooltip:{trigger:'axis'},
       legend:{data:[name,'行业排名'],top:22},
-      grid:{left:50,right:52,top:52,bottom:40},
-      xAxis:{type:'category',data:labels,axisLabel:{rotate:35,fontSize:10}},
+      grid:{left:50,right:52,top:52,bottom:62},
+      xAxis:{type:'category',data:labels,axisLabel:{rotate:35,fontSize:10,interval:0}},
       yAxis:[{type:'value',name:'充足率',axisLabel:{formatter:v=>(v*100).toFixed(0)+'%',fontSize:10},nameTextStyle:{fontSize:10}},
              {type:'value',name:'排名',inverse:true,min:1,max:COMPS.length,axisLabel:{fontSize:10},nameTextStyle:{fontSize:10}}],
       dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:8}],
@@ -1205,8 +1206,8 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
     setOpt('distStack',{
       tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
       legend:{data:buckets,top:0},
-      grid:{left:45,right:20,top:35,bottom:55},
-      xAxis:{type:'category',data:labels,axisLabel:{rotate:35}},
+      grid:{left:45,right:20,top:35,bottom:62},
+      xAxis:{type:'category',data:labels,axisLabel:{rotate:35,interval:0}},
       yAxis:{type:'value',name:'公司数',max:COMPS.length},
       dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:8}],
       series:buckets.map((b,i)=>({name:b,type:'bar',stack:'t',data:counts[i],itemStyle:{color:BUCKET_COL[b]}}))
@@ -1260,7 +1261,7 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
       },
       legend:{data:[...MC_COMP.map(c=>c.n),'最低资本合计(N)'],top:0,type:'plain',textStyle:{fontSize:10},itemWidth:12,itemHeight:9,itemGap:6},
       grid:{left:55,right:65,top:70,bottom:70},
-      xAxis:{type:'category',data:labels,axisLabel:{rotate:40,fontSize:10,interval:'auto'}},
+      xAxis:{type:'category',data:labels,axisLabel:{rotate:40,fontSize:10,interval:0}},
       yAxis:[
         {type:'value',name:'占N比例%',axisLabel:{formatter:v=>v.toFixed(0)+'%',fontSize:10},nameTextStyle:{fontSize:11}},
         {type:'value',name:'金额(万元)',axisLabel:{formatter:v=>yi(v),fontSize:10},nameTextStyle:{fontSize:11}}
@@ -1299,7 +1300,7 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
       },
       legend:{data:[...MC_COMP.map(c=>c.n),'行业最低资本合计(N)'],top:0,type:'plain',textStyle:{fontSize:10},itemWidth:12,itemHeight:9,itemGap:6},
       grid:{left:55,right:65,top:70,bottom:70},
-      xAxis:{type:'category',data:labels,axisLabel:{rotate:40,fontSize:10,interval:'auto'}},
+      xAxis:{type:'category',data:labels,axisLabel:{rotate:40,fontSize:10,interval:0}},
       yAxis:[
         {type:'value',name:'占N比例%',axisLabel:{formatter:v=>v.toFixed(0)+'%',fontSize:10},nameTextStyle:{fontSize:11}},
         {type:'value',name:'金额(万元)',axisLabel:{formatter:v=>yi(v),fontSize:10},nameTextStyle:{fontSize:11}}
@@ -1465,8 +1466,8 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
         }
       },
       legend:{data:cfg.tiers.map(t=>t[1]),top:0},
-      grid:{left:55,right:20,top:35,bottom:55},
-      xAxis:{type:'category',data:labels,axisLabel:{rotate:35}},
+      grid:{left:55,right:20,top:35,bottom:60},
+      xAxis:{type:'category',data:labels,axisLabel:{rotate:35,interval:0}},
       yAxis:{type:'value',name:'占I比例%',max:100,axisLabel:{formatter:v=>v.toFixed(0)+'%'}},
       dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:8}],
       series
@@ -1496,8 +1497,8 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
         }
       },
       legend:{data:cfg.tiers.map(t=>t[1]),top:0},
-      grid:{left:55,right:20,top:35,bottom:55},
-      xAxis:{type:'category',data:labels,axisLabel:{rotate:35}},
+      grid:{left:55,right:20,top:35,bottom:60},
+      xAxis:{type:'category',data:labels,axisLabel:{rotate:35,interval:0}},
       yAxis:{type:'value',name:'占I比例%',max:100,axisLabel:{formatter:v=>v.toFixed(0)+'%'}},
       dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:8}],
       series
@@ -1737,8 +1738,8 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
         }
       },
       legend:{data:['行业·净资产/核心资本','行业·净资产/实际资本',(ent||'')+'·净资产/核心资本',(ent||'')+'·净资产/实际资本'].filter(Boolean),top:0,textStyle:{fontSize:10}},
-      grid:{left:60,right:60,top:48,bottom:45},
-      xAxis:{type:'category',data:labels,axisLabel:{rotate:35,fontSize:10}},
+      grid:{left:60,right:60,top:48,bottom:58},
+      xAxis:{type:'category',data:labels,axisLabel:{rotate:35,fontSize:10,interval:0}},
       yAxis:[{type:'value',name:'净资产/核心资本 %',min:0,axisLabel:{formatter:v=>v.toFixed(0)+'%'}},
               {type:'value',name:'净资产/实际资本 %',min:0,axisLabel:{formatter:v=>v.toFixed(0)+'%'}}],
       dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:8}],
@@ -2276,8 +2277,8 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
       const option = {
         tooltip:{ trigger:'axis', valueFormatter:v=> v==null?'—':(v.toFixed(2)+'%') },
         legend:{ type:'scroll', top:2, textStyle:{ fontSize:10 }, itemWidth:14, itemHeight:10 },
-        grid:{ left:58, right:22, top:40, bottom:54 },
-        xAxis:{ type:'category', data:displayPeriods, axisLabel:{ fontSize:11, rotate: displayPeriods.length>8?30:0 }, boundaryGap:false },
+        grid:{ left:58, right:22, top:40, bottom:56 },
+        xAxis:{ type:'category', data:displayPeriods, axisLabel:{ fontSize:11, interval:0, rotate: displayPeriods.length>8?30:0 }, boundaryGap:false },
         yAxis:{ type:'value', name:'充足率(%)', min:0, axisLabel:{ formatter:v=> (Math.round(v*10)/10) } },
         dataZoom:[{type:'inside'},{type:'slider', height:14, bottom:18}],
         series
