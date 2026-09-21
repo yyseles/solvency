@@ -13,3 +13,5 @@ _debug_*.mjs
 
 # 用户原始数据（不入库）— data/ 下复核Excel
 data/*.xlsx
+data.js.bak_reins
+data.js.bak*
