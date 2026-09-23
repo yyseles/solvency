@@ -203,6 +203,16 @@ def main():
                 if q4:
                     new_mcd.setdefault(comp, {})[pk] = dict(q4)
 
+    # 2c) 口径：Q4 以年度为准 —— 某年已有年度(聚合)值时，不再单列 Q4，省去重复期次。
+    #     （year-end 在偿付能力/最低资本文件中已含年度行与年度明细，Q4 明细并入年度）
+    #     仅当某年确无年度 key 时才保留 Q4 充当年度。(property/life 板块即此结构: Q1,Q2,Q3,年度)
+    for comp in new_data:
+        pd = new_data[comp]
+        for y in sorted({k[:4] for k in pd if re.match(r"^\d{4}(Q[1-4])?$", k)}):
+            if y in pd and (y + "Q4") in pd:
+                del pd[y + "Q4"]
+                new_mcd.get(comp, {}).pop(y + "Q4", None)
+
     # 3) companies 清单 = 偿付能力文件公司清单（数据源名）
     new_companies = list(new_data.keys())
 
