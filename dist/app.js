@@ -571,17 +571,51 @@
     {f:'U',n:'损失吸收效应',c:'#f1c40f',neg:true},
     {f:'V',n:'控制风险',  c:'#34495e',neg:false},
   ];
+  // 保险集团专属：最低资本分解（母公司/各成员公司 + 集团特有风险 + 分散扣减 + 控制风险）
+  const MC_COMP_GROUP = [
+    {f:'mcParent', n:'母公司',     c:'#2f6fed', neg:false},
+    {f:'mcIns',    n:'保险类成员公司', c:'#16a085', neg:false},
+    {f:'mcBank',   n:'银行类成员公司', c:'#e67e22', neg:false},
+    {f:'mcSec',    n:'证券类成员公司', c:'#9b59b6', neg:false},
+    {f:'mcTrust',  n:'信托类成员公司', c:'#8e44ad', neg:false},
+    {f:'mcSpec',   n:'集团特有风险',   c:'#27ae60', neg:false, sub:'spec'},
+    {f:'mcDivReq', n:'风险分散效应(扣减)', c:'#e74c3c', neg:true},
+    {f:'V',        n:'控制风险',     c:'#34495e', neg:false},
+  ];
+  // 集团特有风险下钻目录
+  const MC_CATS_GROUP = {
+    spec:{label:'集团特有风险', pie:false, total:'mcSpec',
+      items:[['mcContagion','风险传染最低资本'],['mcConc','集中度风险最低资本']]},
+    conc:{label:'集中度风险', pie:false, total:'mcConc',
+      items:[['mcConcCc','交易对手集中度风险'],['mcConcInd','行业集中度风险'],['mcConcCust','客户集中度风险'],['mcConcDiv','集中度风险分散效应(扣减)']]},
+  };
+  // 集团板块当前最低资本分解配置（group 用集团专用；其余板块用通用）
+  function curMCComp(){ return S.seg==='group' ? MC_COMP_GROUP : MC_COMP; }
+  function curMCCats(){ return S.seg==='group' ? MC_CATS_GROUP : MC_CATS; }
+  // 集团：最低资本顶/子项统一取值（公司 or 行业；主表字母V/O/N 读主表，其余读 mcDetail）
+  // 口径：合并口径下"无此类成分"即 0（与产寿/再保 mcEntityVals/mcIndVals 一致，缺失按 0 处理，不显示"—"）
+  function grpMcVal(key, f, isInd){
+    if(['V','O','N','P','Q','R','S','T','U'].includes(f)){
+      return isInd ? industrySumAt(key,f) :
+        ((S.riskEntity&&DATA[S.riskEntity]&&DATA[S.riskEntity][key]&&DATA[S.riskEntity][key][f]!=null)
+          ? DATA[S.riskEntity][key][f] : 0);
+    }
+    const mc=(D.segments[S.seg]&&D.segments[S.seg].mcDetail)||{};
+    if(isInd){ let s=0; for(const c of COMPS){ const m=mc[c]&&mc[c][key]; if(m&&m[f]!=null) s+=m[f]; } return s; }
+    return (mc[S.riskEntity]&&mc[S.riskEntity][key]&&mc[S.riskEntity][key][f]!=null)
+      ? mc[S.riskEntity][key][f] : 0;
+  }
   // 最低资本占比时间趋势：所选公司（% of company N）
   function renderRiskCapTrend(){
     const sl=tlSlice();
     const labels=sl.map(k=>KEY2PERIOD[k].label);
     const ent=S.riskEntity;
-    const getRec=k=>(ent&&DATA[ent])?DATA[ent][k]||{}:{};
-    const pctData=MC_COMP.map(c=>
-      sl.map(k=>{const r=getRec(k);const N=r.N;return (N!=null&&N!==0&&r[c.f]!=null)?(r[c.f]/N*100):null;})
+    const MC=curMCComp();
+    const pctData=MC.map(c=>
+      sl.map(k=>{const N=grpMcVal(k,'N',false);const v=grpMcVal(k,c.f,false);return (N!=null&&N!==0&&v!=null)?(v/N*100):null;})
     );
-    const nLine=sl.map(k=>{const r=getRec(k);return r.N!=null?r.N:null;});
-    const barSeries=MC_COMP.map((c,i)=>({
+    const nLine=sl.map(k=>grpMcVal(k,'N',false));
+    const barSeries=MC.map((c,i)=>({
       name:c.n,type:'bar',stack:'mc',data:pctData[i],
       itemStyle:{color:c.c},label:{show:false}
     }));
@@ -597,7 +631,7 @@
           return h;
         }
       },
-      legend:{data:[...MC_COMP.map(c=>c.n),'最低资本合计(N)'],top:0,type:'plain',textStyle:{fontSize:10},itemWidth:12,itemHeight:9,itemGap:6},
+      legend:{data:[...MC.map(c=>c.n),'最低资本合计(N)'],top:0,type:'plain',textStyle:{fontSize:10},itemWidth:12,itemHeight:9,itemGap:6},
       grid:{left:55,right:65,top:70,bottom:70},
       xAxis:{type:'category',data:labels,axisLabel:{rotate:40,fontSize:10,interval:0}},
       yAxis:[
@@ -616,11 +650,12 @@
   function renderRiskCapTrendInd(){
     const sl=tlSlice();
     const labels=sl.map(k=>KEY2PERIOD[k].label);
-    const pctData=MC_COMP.map(c=>
-      sl.map(k=>{const v=industrySumAt(k,c.f);const N=industrySumAt(k,'N');return (N!=null&&N!==0)?(v/N*100):null;})
+    const MC=curMCComp();
+    const pctData=MC.map(c=>
+      sl.map(k=>{const v=grpMcVal(k,c.f,true);const N=grpMcVal(k,'N',true);return (N!=null&&N!==0)?(v/N*100):null;})
     );
-    const nLine=sl.map(k=>industrySumAt(k,'N'));
-    const barSeries=MC_COMP.map((c,i)=>({
+    const nLine=sl.map(k=>grpMcVal(k,'N',true));
+    const barSeries=MC.map((c,i)=>({
       name:c.n,type:'bar',stack:'mc',data:pctData[i],
       itemStyle:{color:c.c},label:{show:false}
     }));
@@ -636,7 +671,7 @@
           return h;
         }
       },
-      legend:{data:[...MC_COMP.map(c=>c.n),'行业最低资本合计(N)'],top:0,type:'plain',textStyle:{fontSize:10},itemWidth:12,itemHeight:9,itemGap:6},
+      legend:{data:[...MC.map(c=>c.n),'行业最低资本合计(N)'],top:0,type:'plain',textStyle:{fontSize:10},itemWidth:12,itemHeight:9,itemGap:6},
       grid:{left:55,right:65,top:70,bottom:70},
       xAxis:{type:'category',data:labels,axisLabel:{rotate:40,fontSize:10,interval:0}},
       yAxis:[
@@ -657,29 +692,47 @@
     const el=document.getElementById(tid); if(!el) return;
     const ent=S.riskEntity;
     if(!ent){ el.innerHTML=''; return; }
-    const e=(DATA[ent]&&DATA[ent][k])||{};
+    const isGrp = S.seg==='group';
     const ind=entityRec(k,true);
-    const Ne=e.N||0, Nind=ind.N||0;
+    const Ne=grpMcVal(k,'N',false)||0, Nind=grpMcVal(k,'N',true)||0;
     const fmtV=v=>(v==null||isNaN(v))?'<span style="color:#9aa7b5">—</span>':yi(v);
     const pct=(v,t)=>(v!=null&&!isNaN(v)&&t>0)?(v/t*100).toFixed(2)+'%':'—';
     const hasMc = !!(D.segments[S.seg] && D.segments[S.seg].mcDetail);
-    const rows=MC_COMP.map((c,ci)=>{
-      const v=e[c.f], iV=ind[c.f];
-      const hasSub = hasMc && c.sub && MC_CATS[c.sub];
+    const MC=curMCComp(), CATS=curMCCats();
+    const rows=MC.map((c,ci)=>{
+      const v=grpMcVal(k,c.f,false), iV=grpMcVal(k,c.f,true);
+      // 顶层项数值缺失时按 0 处理，避免 extra v undefined；保真给—当无
+      const vStr=fmtV(v), iVStr=fmtV(iV);
+      const hasSub = hasMc && c.sub && CATS[c.sub];
       const arrow = hasSub ? '<span style="cursor:pointer;color:#2f6fed;font-size:11px;margin-right:4px" class="sub-arrow" data-ci="'+ci+'">▶</span>' : '<span style="display:inline-block;width:15px"></span>';
-      let html = `<tr style="cursor:${hasSub?'pointer':'default'}" data-row="${ci}"><td>${arrow}${c.n}</td><td class="ar">${fmtV(v)}</td><td class="ar">${pct(v,Ne)}</td>`+
-             `<td class="ar">${fmtV(iV)}</td><td class="ar">${pct(iV,Nind)}</td></tr>`;
+      let html = `<tr style="cursor:${hasSub?'pointer':'default'}" data-row="${ci}"><td>${arrow}${c.n}</td><td class="ar">${vStr}</td><td class="ar">${pct(v,Ne)}</td>`+
+             `<td class="ar">${iVStr}</td><td class="ar">${pct(iV,Nind)}</td></tr>`;
       if(hasSub){
-        const cat=MC_CATS[c.sub];
-        const eVals=mcEntityVals(k,cat);
-        const iVals=mcIndVals(k,cat);
-        const totalVal=e[c.f]||0, totalInd=iV||0;
+        const cat=CATS[c.sub];
+        // 集团 spec 需级联：子项中"集中度风险"再展开 4 项
+        const totalVal=v||0, totalInd=iV||0;
         const subRows=cat.items.map((it,ii)=>{
-          const ev=eVals[ii], iv=iVals[ii];
-          return `<tr class="sub-row sub-row-${ci}" style="display:none;background:#f8faff;border-left:3px solid ${c.c};font-size:11.4px">`+
+          const ev=grpMcVal(k,it[0],false), iv=grpMcVal(k,it[0],true);
+          let rowHtml = `<tr class="sub-row sub-row-${ci}" style="display:none;background:#f8faff;border-left:3px solid ${c.c};font-size:11.4px">`+
             `<td style="padding-left:28px;color:#5a6a7a">　${it[1]}</td>`+
             `<td class="ar">${fmtV(ev)}</td><td class="ar">${pct(ev,totalVal)}</td>`+
             `<td class="ar">${fmtV(iv)}</td><td class="ar">${pct(iv,totalInd)}</td></tr>`;
+          // 集团：集中度风险二级展开
+          if(isGrp && it[0]==='mcConc' && CATS.conc){
+            const c2=CATS.conc;
+            const tv2=ev||0, ti2=iv||0;
+            const sub2=c2.items.map((it2,ii2)=>{
+              const ev2=grpMcVal(k,it2[0],false), iv2=grpMcVal(k,it2[0],true);
+              return `<tr class="sub-row2 sub-row-${ci}" style="display:none;background:#f0f6ff;border-left:3px solid #8ab4f8">`+
+                `<td style="padding-left:52px;color:#5a6a7a">　${it2[1]}</td>`+
+                `<td class="ar">${fmtV(ev2)}</td><td class="ar">${pct(ev2,tv2)}</td>`+
+                `<td class="ar">${fmtV(iv2)}</td><td class="ar">${pct(iv2,ti2)}</td></tr>`;
+            }).join('');
+            rowHtml += `<tr class="sub-row sub-row-${ci} sub2-arrow" data-s2="${ci}" style="display:none;cursor:pointer;background:#f8faff;border-left:3px solid ${c.c};font-size:11.4px">`+
+              `<td style="padding-left:40px;color:#2f6fed">　▪ 集中度风险分解 ▸</td><td colspan="4"></td></tr>`+
+              sub2;
+          }
+          return rowHtml;
         }).join('');
         html += subRows;
       }
@@ -691,7 +744,7 @@
       `<tr style="font-weight:700;background:#f7faff"><td>最低资本合计(N)</td>`+
       `<td class="ar">${fmtV(Ne)}</td><td class="ar">100.00%</td>`+
       `<td class="ar">${fmtV(Nind)}</td><td class="ar">100.00%</td></tr></tbody></table>`;
-    // 绑定展开/收起
+    // 绑定一级展开/收起
     el.querySelectorAll('.sub-arrow').forEach(a=>{
       a.addEventListener('click',function(ev){
         ev.stopPropagation();
@@ -710,26 +763,40 @@
         if(arrow) arrow.click();
       });
     });
+    // 绑定集团集中度二级展开
+    el.querySelectorAll('.sub2-arrow[data-s2]').forEach(a=>{
+      a.addEventListener('click',function(ev){
+        ev.stopPropagation();
+        const ci=this.getAttribute('data-s2');
+        const rows=el.querySelectorAll('.sub-row-'+ci+'.sub-row2');
+        const visible=rows[0]&&rows[0].style.display!=='none';
+        rows.forEach(r=>r.style.display=visible?'none':'table-row');
+        this.textContent='　▪ 集中度风险分解 '+(visible?'▸':'▾');
+      });
+    });
     const tt=document.getElementById('capCmpTitle');
     if(tt) tt.textContent=ent+' vs 行业 · 最低资本拆解（'+KEY2PERIOD[k].label+'）';
   }
   // 最低资本：公司 vs 行业 占比对比（横向分组条形，百分数 2 位小数）
   function renderCapPieCmp(k){
     const ent=S.riskEntity;
-    // 子风险模式：根据 mcPieMode 切换父风险按钮组的可见性
+    const isGrp = S.seg==='group';
+    if(isGrp){ S.mcPieMode='top'; }  // 集团仅顶层（子风险在拆解表级联）
+    // 子风险模式：根据 mcPieMode 切换父风险按钮组的可见性（集团禁用）
     const parentEl=document.getElementById('mcPieParent');
-    if(parentEl) parentEl.style.display = (S.mcPieMode==='sub') ? '' : 'none';
+    if(parentEl) parentEl.style.display = (!isGrp && S.mcPieMode==='sub') ? '' : 'none';
+    // mcPieMode：集团固定顶层，隐藏子风险切换
+    const modeEl=document.getElementById('mcPieMode');
+    if(modeEl) modeEl.style.display = isGrp ? 'none' : '';
     let cats, compData, indData, colors;
-    if(S.mcPieMode==='sub'){
-      // 子风险下钻：先选一个顶层风险(寿险/非寿/市场/信用)，再展示该顶层下的子项占比
-      // 占比分母 = 该顶层风险合计（life→mcP, nonlife→mcQ, market→mcR, credit→mcS）
+    if(!isGrp && S.mcPieMode==='sub'){
       const subKey=S.mcPieParent in MC_CATS ? S.mcPieParent : 'market';
       const cat=MC_CATS[subKey];
       if(!cat){ cats=[]; compData=[]; indData=[]; colors=[]; }
       else {
         cats=cat.items.map(it=>it[1]);
         colors=cat.items.map(()=> (MC_COMP.find(c=>c.sub===subKey)||{}).c || '#2f6fed');
-        const parentField=MC_AGG[cat.total]; // mcP→P, mcR→R, ...
+        const parentField=MC_AGG[cat.total];
         if(ent){
           const e=(DATA[ent]&&DATA[ent][k])||{};
           const Ne=parentField?(e[parentField]||0):null;
@@ -742,20 +809,20 @@
         } else { compData=cats.map(()=>null); indData=cats.map(()=>null); }
       }
     } else {
-      // 顶层视图
-      cats=MC_COMP.map(c=>c.n);
-      colors=MC_COMP.map(c=>c.c);
+      const MC=curMCComp();
+      cats=MC.map(c=>c.n);
+      colors=MC.map(c=>c.c);
       if(ent){
-        const e=(DATA[ent]&&DATA[ent][k])||{}; const Ne=e.N||0;
-        const ind=entityRec(k,true); const Nind=ind.N||0;
-        compData=MC_COMP.map(c=>Ne>0?(e[c.f]/Ne*100):null);
-        indData=MC_COMP.map(c=>Nind>0?(ind[c.f]/Nind*100):null);
-      } else { compData=MC_COMP.map(()=>null); indData=MC_COMP.map(()=>null); }
+        const Ne=grpMcVal(k,'N',false)||0;
+        const Nind=grpMcVal(k,'N',true)||0;
+        compData=MC.map(c=>Ne>0?((grpMcVal(k,c.f,false)||0)/Ne*100):null);
+        indData=MC.map(c=>Nind>0?((grpMcVal(k,c.f,true)||0)/Nind*100):null);
+      } else { compData=cats.map(()=>null); indData=cats.map(()=>null); }
     }
     setOpt('riskCapPieCmp',{
       tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:v=>v==null?'—':v.toFixed(2)+'%'},
       legend:{data:['公司占比','行业占比'],top:0},
-      grid:{left:118,right:30,top:35,bottom:30},
+      grid:{left:140,right:30,top:35,bottom:30},
       xAxis:{type:'value',name:'占比%',axisLabel:{formatter:v=>v.toFixed(0)+'%'}},
       yAxis:{type:'category',data:cats,axisLabel:{fontSize:11,interval:0,
         formatter:v=> [...v].length>9 ? v.replace(/(.{9})/g,'$1\n') : v, lineHeight:13}},
