@@ -318,13 +318,14 @@
     const segRowMap={}; rows.forEach(r=>segRowMap[r.seg]=r);
     let tbody='';
     rows.forEach(r=>{
+      const regTd = (has, v)=> has ? `<td style="background:#e8eefa;color:#2f6fed;font-weight:700">${v}</td>` : `<td>—</td>`;
       tbody += `<tr>`+
         `<td style="text-align:left;font-weight:600">${r.name}</td>`+
         `<td>${r.label}</td>`+
         `<td style="color:${colorFor(r.wC,1.0)};font-weight:600">${pct(r.wC)}</td>`+
-        `<td>${r.reg?regPct(r.reg.C):'—'}</td>`+
+        regTd(!!r.reg, r.reg?regPct(r.reg.C):null)+
         `<td style="color:${colorFor(r.wD,0.5)};font-weight:600">${pct(r.wD)}</td>`+
-        `<td>${r.reg?regPct(r.reg.D):'—'}</td>`+
+        regTd(!!r.reg, r.reg?regPct(r.reg.D):null)+
         `<td>${r.n} 家</td>`+
         `<td>${(r.rate*100).toFixed(1)}%</td>`+
       `</tr>`;
@@ -343,7 +344,7 @@
       });
     });
     box.innerHTML =
-      '<div class="hint" style="margin-bottom:14px">以下为各细分板块最新报告期的行业偿付能力概览。计算加权口径为本平台基于个体披露自算（综合=Σ实际资本/Σ最低资本，核心=Σ核心资本/Σ最低资本）；监管披露口径为金融监管总局直接披露（集团暂无监管披露口径，以「—」表示）。「其中」子集行仅列计算加权口径，监管披露口径不区分子集，统一以「—」表示。</div>'+
+      '<div class="hint" style="margin-bottom:14px">以下为各细分板块最新报告期的行业偿付能力概览。计算加权口径为本平台基于个体披露自算（综合=Σ实际资本/Σ最低资本，核心=Σ核心资本/Σ最低资本）；<b>监管披露口径（淡蓝底高亮）</b>为金融监管总局直接披露的行业平均数（集团暂无监管披露口径，以「—」表示）。「其中」子集行仅列计算加权口径，监管披露口径不区分子集，统一以「—」表示。</div>'+
       '<div class="card"><h3>各板块最新偿付能力概览</h3>'+
         '<div style="overflow-x:auto;border:1px solid var(--line);border-radius:10px"><table style="width:100%;min-width:680px;table-layout:auto;font-size:13px;border-collapse:separate;border-spacing:0">'+
           '<thead><tr><th>板块</th><th>最新期</th><th>综合(加权)</th><th>综合(监管)</th><th>核心(加权)</th><th>核心(监管)</th><th>样本数</th><th>达标率</th></tr></thead>'+
