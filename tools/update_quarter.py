@@ -101,6 +101,23 @@ MC_DETAIL_MAP = {
 # 旧版最低资本表兜底行号（无指标名匹配时回退）
 MC_ROW_MAP = {3: "P", 8: "Q", 12: "R", 20: "S", 24: "T", 25: "U", 28: "V", 34: "N"}
 
+# 保险集团最低资本分解：列标题 -> mc 字段（与 tools/_ingest_group.py 一致）
+GROUP_MC_MAP = {
+    "母公司最低资本": "mcParent",
+    "保险类成员公司的最低资本": "mcIns",
+    "银行类成员公司的最低资本": "mcBank",
+    "证券类成员公司的最低资本": "mcSec",
+    "信托类成员公司的最低资本": "mcTrust",
+    "集团层面可量化的特有风险最低资本": "mcSpec",
+    "风险传染最低资本": "mcContagion",
+    "集中度风险最低资本": "mcConc",
+    "交易对手集中度风险最低资本": "mcConcCc",
+    "行业集中度风险最低资本": "mcConcInd",
+    "客户集中度风险最低资本": "mcConcCust",
+    "集中度风险分散效应": "mcConcDiv",
+    "风险分散效应的资本要求减少": "mcDivReq",
+}
+
 
 def period_def(key):
     m = re.match(r"(\d{4})Q([1-4])$", key)
@@ -269,6 +286,49 @@ def read_mc_excel(path):
                 detail_vals[df] = fv
         if agg_vals or detail_vals:
             out.setdefault(current_comp, {})[pkey] = {"agg": agg_vals, "detail": detail_vals}
+    return out
+
+
+# ---------- 读取：保险集团最低资本分解（与 read_solvency 同源，仅取其 mc 列）----------
+def read_group_mc(path):
+    """读保险集团「风险数据」sheet 的最低资本分解 -> {公司:{期次key:{mc字段}}}
+    期次从每行第2列(日期)解析；Q4/年度归并到年度 key（与集团半年度口径一致）。"""
+    wb = load_workbook(path, read_only=True, data_only=True)
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+    hdr_i = None
+    for ri, r in enumerate(rows):
+        if r and any(str(c).strip() in GROUP_MC_MAP for c in r if c):
+            hdr_i = ri
+            break
+    if hdr_i is None:
+        return {}
+    headers = [str(c).strip() if c else "" for c in rows[hdr_i]]
+    col_idx = {GROUP_MC_MAP[h]: ci for ci, h in enumerate(headers) if h in GROUP_MC_MAP}
+    out = {}
+    for ri in range(hdr_i + 1, len(rows)):
+        r = rows[ri]
+        if not r or not r[0]:
+            continue
+        comp = str(r[0]).strip()
+        # 期次：第2列日期（缺省用调用方 quarter）
+        pkey = None
+        if len(r) > 1 and r[1]:
+            m = re.match(r"(\d{4})第?([一二三四1-4])季度", str(r[1]).strip())
+            if m:
+                qmap = {"一": "1", "二": "2", "三": "3", "四": "4"}
+                pk = "%sQ%s" % (m.group(1), qmap.get(m.group(2), m.group(2)))
+                pkey = pk[:4] if re.match(r"^\d{4}Q[34]$", pk) else pk
+        vals = {}
+        for f, ci in col_idx.items():
+            if ci < len(r) and r[ci] is not None:
+                try:
+                    vals[f] = round(float(r[ci]), 6)
+                except (TypeError, ValueError):
+                    pass
+        if vals:
+            out.setdefault(comp, {})[pkey] = vals
     return out
 
 
@@ -514,6 +574,33 @@ def upsert_mc(quarter, rev, dry, overwrite, paths=None):
                         d_new += 1
                     changed = True
         print(f"  {seg}: 主表 {n_new + n_ovw} 家(新{n_new}/覆盖{n_ovw}/跳过{n_skip})  mcDetail {d_new + d_ovw} 家(新{d_new}/覆盖{d_ovw}/跳过{d_skip})  ({os.path.basename(p)})")
+    # ---- 保险集团最低资本分解（结构不同于产寿/再保，独立读取）----
+    gsrc = (paths or {}).get("group")
+    if gsrc:
+        grecs = read_group_mc(gsrc)  # {comp: {period:{mc字段}}}
+        segobj = D["segments"]["group"]
+        mcDetail = segobj.setdefault("mcDetail", {})
+        n_new = n_ovw = n_skip = 0
+        for comp, permap in grecs.items():
+            pk = quarter if quarter in permap else (list(permap)[0] if permap else None)
+            if not pk:
+                continue
+            det = permap[pk]
+            if comp not in segobj["companies"]:
+                print(f"  [WARN] {comp} 不在 data.js group 公司列表，跳过")
+                continue
+            existing_det = mcDetail.setdefault(comp, {}).get(pk)
+            has_det = existing_det and any(v is not None for v in existing_det.values())
+            if has_det and not overwrite:
+                n_skip += 1
+            else:
+                mcDetail[comp][pk] = det
+                if has_det:
+                    n_ovw += 1
+                else:
+                    n_new += 1
+                changed = True
+        print(f"  group: mcDetail {n_new + n_ovw} 家(新{n_new}/覆盖{n_ovw}/跳过{n_skip})  ({os.path.basename(gsrc)})")
     if changed and not dry:
         save_js(DATA_JS, var, D, header, dry)
     elif dry:
@@ -613,6 +700,11 @@ def discover_files(data_dir, default_quarter, rev_only=None):
             continue
         q = parse_period_from_name(base)
         rv = rev_of(p)
+        # 年份区间(如 集团偿付能力22-25 / 再保偿付能力22Q1-26Q2)属于历史整段时间线，
+        # 不是单季度更新文件；无解析期次且文件名含 年-年 区间 → 一律视为历史文件，跳过。
+        if not q and re.search(r"\d{2,4}Q?\d*-+\s*\d{2,4}Q?\d*", base):
+            print(f"  [SKIP] 年份区间历史文件(整段时间线，非单期更新): {base}")
+            continue
         if not q:
             # 无期次标记：带修订号(如 -0831/-0918)的新文件 → 用默认期次；
             # 完全无修订号(纯文件名如“集团偿付能力.xlsx”) → 历史旧文件，跳过
@@ -664,7 +756,13 @@ def auto_run(quarter, dry, overwrite, do_deploy, rev_only=None):
             upsert_capital(q, None, dry, overwrite, paths=segmap)
             n_cap += 1
         elif typ == "mc":
-            upsert_mc(q, None, dry, overwrite, paths=segmap)
+            # 集团 mcDetail 来源 = 同季度 solvency 的集团偿付能力文件（合并进 mc 处理）
+            mmap = dict(segmap)
+            if "group" not in mmap:
+                solv_segmap = groups.get(("solvency", q), {})
+                if "group" in solv_segmap:
+                    mmap["group"] = solv_segmap["group"]
+            upsert_mc(q, None, dry, overwrite, paths=mmap)
             n_mc += 1
         print()
     # 监管披露：扫描全部年份 xls，对每份文件逐季度尝试入库（已有数据自动跳过）
