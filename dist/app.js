@@ -277,11 +277,8 @@
       let comp=0,bad=0,nodata=0;
       for(const c of COMPS){const st=statusOf(c,lastK); if(st==='ok')comp++; else if(st==='bad')bad++; else nodata++;}
       const disclosed=comp+bad; const rate=disclosed?comp/disclosed:0;
-      // 较上期口径：集团=较半年前(同比Q2)；产寿再=序列上一期(较上季度，Q1的上期为上年年度)
-      let pK=null;
-      if(lastP.kind==='year-end'){ pK=String(lastP.year-1); if(TL.indexOf(pK)<0)pK=null; }
-      else if(seg==='group'){ pK=`${lastP.year-1}Q${lastP.q}`; if(TL.indexOf(pK)<0)pK=null; }
-      else { const i=TL.indexOf(lastK); pK=i>0?TL[i-1]:null; }
+      // 较上期口径：一律取序列上一披露期（集团26Q2的上期=2025年度[即25Q4]；产寿再Q3的上期=Q2，Q1的上期=上年年度）
+      const i=TL.indexOf(lastK); const pK=i>0?TL[i-1]:null;
       const pwC=pK?weightedAt(pK,'C'):null, pwD=pK?weightedAt(pK,'D'):null;
       COMPS=saveC; DATA=saveD; KEY2PERIOD=saveK; TL=saveTL;
       return {seg,name:SEG_NAMES[seg],label:lastP.label,wC,wD,reg,n,rate,pwC,pwD};
@@ -314,11 +311,8 @@
       let comp=0,bad=0,nodata=0;
       for(const c of companies){ const st=statusOf(c,lastK); if(st==='ok')comp++; else if(st==='bad')bad++; else nodata++; }
       const disclosed=comp+bad; const rate=disclosed?comp/disclosed:0;
-      // 较上期口径：与主行一致（集团=较半年前；产寿再=序列上一期）
-      let pK=null;
-      if(lastP.kind==='year-end'){ pK=String(lastP.year-1); if(TL.indexOf(pK)<0)pK=null; }
-      else if(seg==='group'){ pK=`${lastP.year-1}Q${lastP.q}`; if(TL.indexOf(pK)<0)pK=null; }
-      else { const i=TL.indexOf(lastK); pK=i>0?TL[i-1]:null; }
+      // 较上期口径：与主行一致（一律取序列上一披露期）
+      const i=TL.indexOf(lastK); const pK=i>0?TL[i-1]:null;
       const pwC=pK?weightedAt(pK,'C'):null, pwD=pK?weightedAt(pK,'D'):null;
       COMPS=saveC; DATA=saveD; KEY2PERIOD=saveK; TL=saveTL;
       return {wC,wD,n:companies.length,rate,pwC,pwD};
@@ -366,7 +360,7 @@
       });
     });
     box.innerHTML =
-      '<div class="hint" style="margin-bottom:14px">以下为各细分板块最新报告期的行业偿付能力概览。计算加权口径为本平台基于个体披露自算（综合=Σ实际资本/Σ最低资本，核心=Σ核心资本/Σ最低资本）；<b>监管披露口径（淡蓝底高亮）</b>为金融监管总局直接披露的行业平均数（集团暂无监管披露口径，以「—」表示）。「Δ综合 / Δ核心」为<b>较上期</b>变动（产寿再=较上季度，集团=较半年前；百分点，红降绿升）；「达标率」按已披露公司计（≥90%绿 / 80–90%橙 / <80%红）。「其中」子集行仅列计算加权口径，监管披露口径不区分子集，统一以「—」表示。</div>'+
+      '<div class="hint" style="margin-bottom:14px">以下为各细分板块最新报告期的行业偿付能力概览。计算加权口径为本平台基于个体披露自算（综合=Σ实际资本/Σ最低资本，核心=Σ核心资本/Σ最低资本）；<b>监管披露口径（淡蓝底高亮）</b>为金融监管总局直接披露的行业平均数（集团暂无监管披露口径，以「—」表示）。「Δ综合 / Δ核心」为<b>较上期</b>变动（上一披露期：季度板块=上季度[Q1的上期为上年年度]，集团=上年年末；百分点，红降绿升）；「达标率」按已披露公司计（≥90%绿 / 80–90%橙 / <80%红）。「其中」子集行仅列计算加权口径，监管披露口径不区分子集，统一以「—」表示。</div>'+
       '<div class="card"><h3>各板块最新偿付能力概览</h3>'+
         '<div style="overflow-x:auto;border:1px solid var(--line);border-radius:10px"><table style="width:100%;min-width:680px;table-layout:auto;font-size:13px;border-collapse:separate;border-spacing:0">'+
           '<thead><tr><th>板块</th><th>最新期</th><th>综合(加权)</th><th>综合(监管)</th><th>Δ综合</th><th>核心(加权)</th><th>核心(监管)</th><th>Δ核心</th><th>样本数</th><th>达标率</th></tr></thead>'+
