@@ -277,8 +277,10 @@
       let comp=0,bad=0,nodata=0;
       for(const c of COMPS){const st=statusOf(c,lastK); if(st==='ok')comp++; else if(st==='bad')bad++; else nodata++;}
       const disclosed=comp+bad; const rate=disclosed?comp/disclosed:0;
+      const pK=prevComparable(lastK);
+      const pwC=pK?weightedAt(pK,'C'):null, pwD=pK?weightedAt(pK,'D'):null;
       COMPS=saveC; DATA=saveD; KEY2PERIOD=saveK; TL=saveTL;
-      return {seg,name:SEG_NAMES[seg],label:lastP.label,wC,wD,reg,n,rate};
+      return {seg,name:SEG_NAMES[seg],label:lastP.label,wC,wD,reg,n,rate,pwC,pwD};
     });
     // 「其中」子集定义（在每个板块主行下展开）
     const SUBSETS = {
@@ -308,14 +310,22 @@
       let comp=0,bad=0,nodata=0;
       for(const c of companies){ const st=statusOf(c,lastK); if(st==='ok')comp++; else if(st==='bad')bad++; else nodata++; }
       const disclosed=comp+bad; const rate=disclosed?comp/disclosed:0;
+      const pK=prevComparable(lastK);
+      const pwC=pK?weightedAt(pK,'C'):null, pwD=pK?weightedAt(pK,'D'):null;
       COMPS=saveC; DATA=saveD; KEY2PERIOD=saveK; TL=saveTL;
-      return {wC,wD,n:companies.length,rate};
+      return {wC,wD,n:companies.length,rate,pwC,pwD};
     }
     const box=document.getElementById('overviewAll');
     // 先释放旧图表实例，避免 innerHTML 重建后实例仍绑定到已移除的旧 DOM（导致切换回此 tab 时图不显示）
     ['allBar_group','allBar_property','allBar_life','allBar_reins'].forEach(id=>{ if(charts[id]){ try{charts[id].dispose();}catch(e){} charts[id]=null; } });
     // 组装表格 tbody：每个板块主行 + 其「其中」子集行
     const segRowMap={}; rows.forEach(r=>segRowMap[r.seg]=r);
+    // 同比变动单元格（百分点，红降绿升）；达标率着色（≥90绿/80–90橙/<80红）
+    const dChg=(cur,prev)=>(cur==null||prev==null)?'<td>—</td>':(()=>{const d=(cur-prev)*100;
+      const c=d<0?'#e74c3c':(d>0?'#27ae60':'#888');
+      return `<td style="color:${c};font-weight:600">${(d>0?'+':'')+d.toFixed(1)}</td>`;})();
+    const rateTd=rate=>{const p=rate*100;const c=p>=90?'#27ae60':(p>=80?'#e67e22':'#e74c3c');
+      return `<td style="color:${c};font-weight:600">${p.toFixed(1)}%</td>`;};
     let tbody='';
     rows.forEach(r=>{
       const regTd = (has, v)=> has ? `<td style="background:#e8eefa;color:#2f6fed;font-weight:700">${v}</td>` : `<td>—</td>`;
@@ -324,10 +334,12 @@
         `<td>${r.label}</td>`+
         `<td style="color:${colorFor(r.wC,1.0)};font-weight:600">${pct(r.wC)}</td>`+
         regTd(!!r.reg, r.reg?regPct(r.reg.C):null)+
+        dChg(r.wC,r.pwC)+
         `<td style="color:${colorFor(r.wD,0.5)};font-weight:600">${pct(r.wD)}</td>`+
         regTd(!!r.reg, r.reg?regPct(r.reg.D):null)+
+        dChg(r.wD,r.pwD)+
         `<td>${r.n} 家</td>`+
-        `<td>${(r.rate*100).toFixed(1)}%</td>`+
+        rateTd(r.rate)+
       `</tr>`;
       (SUBSETS[r.seg]||[]).forEach(sb=>{
         const sr=subRow(r.seg, sb.companies);
@@ -336,18 +348,20 @@
           `<td></td>`+
           `<td style="color:${colorFor(sr.wC,1.0)};font-weight:600">${pct(sr.wC)}</td>`+
           `<td>—</td>`+
+          dChg(sr.wC,sr.pwC)+
           `<td style="color:${colorFor(sr.wD,0.5)};font-weight:600">${pct(sr.wD)}</td>`+
           `<td>—</td>`+
+          dChg(sr.wD,sr.pwD)+
           `<td>${sr.n} 家</td>`+
-          `<td>${(sr.rate*100).toFixed(1)}%</td>`+
+          rateTd(sr.rate)+
         `</tr>`;
       });
     });
     box.innerHTML =
-      '<div class="hint" style="margin-bottom:14px">以下为各细分板块最新报告期的行业偿付能力概览。计算加权口径为本平台基于个体披露自算（综合=Σ实际资本/Σ最低资本，核心=Σ核心资本/Σ最低资本）；<b>监管披露口径（淡蓝底高亮）</b>为金融监管总局直接披露的行业平均数（集团暂无监管披露口径，以「—」表示）。「其中」子集行仅列计算加权口径，监管披露口径不区分子集，统一以「—」表示。</div>'+
+      '<div class="hint" style="margin-bottom:14px">以下为各细分板块最新报告期的行业偿付能力概览。计算加权口径为本平台基于个体披露自算（综合=Σ实际资本/Σ最低资本，核心=Σ核心资本/Σ最低资本）；<b>监管披露口径（淡蓝底高亮）</b>为金融监管总局直接披露的行业平均数（集团暂无监管披露口径，以「—」表示）。「Δ综合 / Δ核心」为<b>较上年同期</b>变动（百分点，红降绿升）；「达标率」按已披露公司计（≥90%绿 / 80–90%橙 / <80%红）。「其中」子集行仅列计算加权口径，监管披露口径不区分子集，统一以「—」表示。</div>'+
       '<div class="card"><h3>各板块最新偿付能力概览</h3>'+
         '<div style="overflow-x:auto;border:1px solid var(--line);border-radius:10px"><table style="width:100%;min-width:680px;table-layout:auto;font-size:13px;border-collapse:separate;border-spacing:0">'+
-          '<thead><tr><th>板块</th><th>最新期</th><th>综合(加权)</th><th>综合(监管)</th><th>核心(加权)</th><th>核心(监管)</th><th>样本数</th><th>达标率</th></tr></thead>'+
+          '<thead><tr><th>板块</th><th>最新期</th><th>综合(加权)</th><th>综合(监管)</th><th>Δ综合</th><th>核心(加权)</th><th>核心(监管)</th><th>Δ核心</th><th>样本数</th><th>达标率</th></tr></thead>'+
           '<tbody>'+tbody+'</tbody>'+
         '</table>'+
       '</div>'+
@@ -396,7 +410,7 @@
     }).join('');
     return `<div class="kpi"><div class="lab">${lab}</div><div class="val" style="color:${color}">${val}</div><div class="sub stats">${chips}</div></div>`;
   }
-  function colorFor(v,line){ if(v==null) return '#888'; return v<line?'#e74c3c':(v<line*1.5?'#e67e22':'#27ae60'); }
+  function colorFor(v,line){ if(v==null) return '#888'; return v<line?'#e74c3c':(v<line*1.2?'#e67e22':'#27ae60'); }
   function prevComparable(k){
     const p=KEY2PERIOD[k]; if(!p) return null;
     if(p.kind==='year-end'){ const pk=`${p.year-1}`; return has(pk)?pk:null; }
@@ -442,7 +456,7 @@
     const nodata=all.filter(x=>x.st==='nodata').sort((a,b)=>a.c.localeCompare(b.c));
     const rows=disclosed.concat(nodata);
     const cats=disclosed.map(x=>x.c), vals=disclosed.map(x=>x.v);
-    const colors=disclosed.map(x=> x.v< pctLine('C')?'#e74c3c':(x.v< pctLine('C')*1.5?'#e67e22':'#27ae60'));
+    const colors=disclosed.map(x=> x.v< pctLine('C')?'#e74c3c':(x.v< pctLine('C')*1.2?'#e67e22':'#27ae60'));
     setOpt('rankBar',{
       tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:v=>(v*100).toFixed(1)+'%'},
       grid:{left:110,right:40,top:10,bottom:30},
@@ -1016,8 +1030,12 @@
 
     // 占比图已移除：核心二级资本明细绝大多数公司未披露，拆分结果无可分析性（2026-08-05）
 
-    // ---- 表格：核心资本构成（2026Q1）四列：公司金额/公司占比/行业金额/行业占比 ----
-    const tk='2026Q1';
+    // ---- 表格：核心资本构成（动态取最新有数期次）四列：公司金额/公司占比/行业金额/行业占比 ----
+    function hasCapData(pk){ for(const c of LCD.companies){ const r=LCD.data[c]&&LCD.data[c][pk]; if(r&&r.core1!=null) return true; } return false; }
+    let tk=null; for(let i=periods.length-1;i>=0;i--){ if(hasCapData(periods[i])){ tk=periods[i]; break; } }
+    if(!tk) tk=periods[periods.length-1];
+    const tkLbl=(m=>m?`${m[1]}年第${m[2]}季度`:(/^(\d{4})$/.test(tk)?tk+'年':tk))(tk.match(/^(\d{4})Q([1-4])$/));
+    const tkTitle=document.getElementById('coreDetailTitle'); if(tkTitle) tkTitle.textContent=`核心资本构成（${tkLbl}）`;
     const tblEl=document.getElementById('coreDetailTable');
     const fmtV=v=>(v==null||isNaN(v))?'<span style="color:#9aa7b5">—</span>':yi(v);
     const iC1=sumIndustry('core1',tk), iC2=sumIndustry('core2',tk), iCore=iC1+iC2;
