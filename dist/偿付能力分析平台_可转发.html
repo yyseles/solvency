@@ -153,6 +153,11 @@ let REG_INDUSTRY = {"meta":{"source":"监管披露·保险业偿付能力状况�
   .cmp-chip{background:#eef3ff;color:var(--brand);border-radius:14px;padding:3px 10px;font-size:12px;cursor:pointer}
   .note{font-size:13px;color:var(--ink);line-height:1.8}
   .note li{margin-bottom:6px}
+  .note details{margin-bottom:10px;border:1px solid var(--line);border-radius:8px;padding:8px 12px}
+  .note summary{cursor:pointer;font-weight:700;font-size:13.5px;user-select:none}
+  .note summary:hover{color:var(--brand)}
+  .note details ul{margin:8px 0 2px}
+  @keyframes bootspin{to{transform:rotate(360deg)}}
   .note code{background:#eef1f6;padding:1px 6px;border-radius:4px;font-family:Consolas,Menlo,monospace}
   .scroll{max-height:520px;overflow-y:auto;overflow-x:hidden;border:1px solid var(--line);border-radius:10px}
   .legend-inline{font-size:12px;color:var(--sub);margin-bottom:8px}
@@ -248,6 +253,10 @@ let REG_INDUSTRY = {"meta":{"source":"监管披露·保险业偿付能力状况�
 </style>
 </head>
 <body>
+<div id="bootLoading" style="position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px">
+  <div style="width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:bootspin .9s linear infinite"></div>
+  <div style="color:var(--sub);font-size:13px">数据加载中…</div>
+</div>
 <header class="top">
   <h1>保险行业偿付能力分析平台</h1>
   <p>集团 · 财产险 · 人身险 · 再保险 ｜ 2022 ～ 2026 · 监管披露口径（C-ROSS 二期）</p>
@@ -260,7 +269,7 @@ let REG_INDUSTRY = {"meta":{"source":"监管披露·保险业偿付能力状况�
   <button data-seg="property">财产险</button>
   <button data-seg="life">人身险</button>
   <button data-seg="reins">再保险</button>
-  <button data-seg="compare" style="border-color:#9b8cff;color:#9b8cff;margin-left:6px">上市公司对比</button>
+  <button data-seg="compare" style="margin-left:6px">上市公司对比</button>
   <span class="spacer"></span>
   <span class="meta" id="segMeta"></span>
 </nav>
@@ -544,16 +553,27 @@ let REG_INDUSTRY = {"meta":{"source":"监管披露·保险业偿付能力状况�
         <h3 style="margin:0;font-size:17px">数据口径、分析方法与更新机制</h3>
         <button id="aboutClose" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--sub);line-height:1;padding:0 4px">✕</button>
       </div>
-      <ul class="note">
+      <div class="note">
+      <details open><summary>数据范围与口径</summary>
+      <ul>
         <li><b>平台范围：</b>保险行业四个板块——<b>保险集团控股公司、财产保险公司、人身保险公司、再保险公司</b>，分别来自四个独立数据源文件，各板块公司集合与期间覆盖相互独立。</li>
         <li><b>口径归一（重要）：</b>每年含 Q1–Q3、Q4（审计前/预披露）、年度（审计后/经审计）。本平台统一采用「<b>年末优先取年度（审计后），无年度则取 Q4（审计前）</b>」的归一化口径，每个公司每个年度只保留一个年末值；季度取 Q1/Q2/Q3，因此<b>不再需要区分双口径切换</b>。<b>保险集团</b>为半年度披露（无 Q1/Q3），只取 Q2 与年末；集团年末季度（源中为"第四季度"）统一充当"年度"期次。</li>
         <li><b>单位：</b>除充足率（比率，显示时×100 为 %）外，所有资本/资产/负债指标单位均为<b>人民币万元</b>；图表中金额统一折算为<b>亿元</b>展示。</li>
         <li><b>监管红线：</b>综合偿付能力充足率 ≥ 100%、核心 ≥ 50% 方为达标；任一不达标即列为风险公司。"关注"定义为综合 100–120% 或 核心 50–60%。</li>
+      </ul></details>
+      <details open><summary>行业聚合与未披露处理</summary>
+      <ul>
         <li><b>行业聚合：</b>充足率类指标按公司<b>中位数/均值</b>统计（不加权，避免大公司主导）；金额类指标（实际资本、最低资本等）按公司<b>求和</b>得行业合计。概览与趋势另提供两套<b>监管口径</b>：① <b>监管披露（金融监管总局直接披露的行业平均数，图中橙虚线/橙柱、表格淡蓝底高亮）</b>，来自监管披露行业偿付能力水平表，<b>保险集团暂无</b>此类口径（以「—」表示）；② <b>监管口径加权平均</b>（平台自算）：综合 = Σ实际资本 / Σ最低资本，核心 = Σ(核心一级＋核心二级) / Σ最低资本，即监管意义上的<b>行业整体</b>充足率（受大公司主导，与中位数互补）；综合与核心两项加权均只纳入「实际资本、核心一级、核心二级、最低资本四项齐全」的公司，以保证同一群体下 综合 ≥ 核心 恒等式成立。
           <br><b>未披露（空值）处理：</b>某期末<b>综合/核心充足率为空（NaN/缺失）</b>的公司，状态标记为「<b>未披露</b>」，表示当期未披露偿付能力数据（多为被接管/风险处置类机构），该状态<b>单列</b>——既非达标也非不达标，<b>不计入达标率分母、也不计入风险公司数</b>。「风险分布」另设「未披露」分段以单独呈现。</li>
+      </ul></details>
+      <details><summary>风险结构、指标关系与缺失字段</summary>
+      <ul>
         <li><b>最低资本风险结构：</b>对量化风险最低资本进一步下钻。<b>产/寿/再保</b>基于各板块《最低资本》明细表（C-ROSS 二期标准 33 项）——寿险/非寿险业务保险风险、市场风险、信用风险的子项（如寿险的损失发生/退保/费用风险，市场的利率/权益/房地产/汇率风险，信用的利差/交易对手违约风险等），以及附加资本（逆周期、D-SII、G-SII、其他）构成；可叠加「行业合计」对比。明细数据年末值取自各年第4季度（审计前）披露，与主表年末（审计后）口径略有差异，均同源季度披露。<b>保险集团</b>则按《集团偿付能力》披露的最低资本分解下钻——母公司、保险类/银行类/证券类/信托类成员公司最低资本、集团层面可量化的特有风险（= 风险传染 ＋ 集中度风险）与风险分散效应扣减；其中集中度风险再细分交易对手/行业/客户/集中度分散效应，可两级展开。某集团无该类成分（如无银行/证券/信托成员、无特有风险）时按 <b>0</b> 处理，风险分散效应扣减各集团均未披露按 0。</li>
         <li><b>指标关系（校验用）：</b>最低资本 N ≈ 量化风险最低资本 O ＋ 控制风险最低资本 V；实际资本 I ＝ 核心一级 J ＋ 核心二级 K ＋ 附属一级 L ＋ 附属二级 M。</li>
         <li><b>缺失字段：</b>产/寿/再保 的核心二级资本(K)、附属二级资本(M) 部分公司早期缺失，图形中以「—」表示；<b>保险集团</b>的母公司持股子公司最低资本不单独展示（并入母公司口径），风险分散效应扣减普遍未披露按 0 处理；国寿集团、大家保险集团、富德控股 未披露最低资本分解明细（按 0 处理，不显示下钻）。</li>
+      </ul></details>
+      <details><summary>更新机制与数据来源</summary>
+      <ul>
         <li><b>更新机制：</b>季度数据更新由 <code>tools/update_quarter.py</code> 一键自动完成。
           <br>① <b>自动模式（推荐）：</b>把新季度源 Excel 放入 <code>data/</code> 目录，运行
           <br><code>python tools/update_quarter.py --dry --quarter 2026Q2</code>（先预览将处理哪些文件，确认无误）
@@ -562,7 +582,8 @@ let REG_INDUSTRY = {"meta":{"source":"监管披露·保险业偿付能力状况�
           <br>② <b>浏览器自助（普通用户）：</b>页面顶部「数据」按钮——导出当前数据 JSON、改好数值导入即刷新、再「导出可转发网页」生成新单文件转发（无需服务器）。
           <br>③ 也可把 xlsx/JSON 发我代更新，刷新页面即生效。</li>
         <li><b>数据来源：</b>各公司偿付能力季度报告摘要（公开披露），由精算整理。</li>
-      </ul>
+      </ul></details>
+      </div>
     </div>
   </div>
 
@@ -594,7 +615,7 @@ let REG_INDUSTRY = {"meta":{"source":"监管披露·保险业偿付能力状况�
   </div>
 </main>
 
-<div class="footer">保险行业偿付能力分析平台 · 纯静态前端 · 数据内联，可离线使用</div>
+<div class="footer" id="siteFooter">保险行业偿付能力分析平台 · 纯静态前端 · 数据内联，可离线使用</div>
 
       <script>/* compare_config.js (inlined) */
 // 上市公司对比板块配置
@@ -939,7 +960,11 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
       let comp=0,bad=0,nodata=0;
       for(const c of COMPS){const st=statusOf(c,lastK); if(st==='ok')comp++; else if(st==='bad')bad++; else nodata++;}
       const disclosed=comp+bad; const rate=disclosed?comp/disclosed:0;
-      const pK=prevComparable(lastK);
+      // 较上期口径：集团=较半年前(同比Q2)；产寿再=序列上一期(较上季度，Q1的上期为上年年度)
+      let pK=null;
+      if(lastP.kind==='year-end'){ pK=String(lastP.year-1); if(TL.indexOf(pK)<0)pK=null; }
+      else if(seg==='group'){ pK=`${lastP.year-1}Q${lastP.q}`; if(TL.indexOf(pK)<0)pK=null; }
+      else { const i=TL.indexOf(lastK); pK=i>0?TL[i-1]:null; }
       const pwC=pK?weightedAt(pK,'C'):null, pwD=pK?weightedAt(pK,'D'):null;
       COMPS=saveC; DATA=saveD; KEY2PERIOD=saveK; TL=saveTL;
       return {seg,name:SEG_NAMES[seg],label:lastP.label,wC,wD,reg,n,rate,pwC,pwD};
@@ -972,7 +997,11 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
       let comp=0,bad=0,nodata=0;
       for(const c of companies){ const st=statusOf(c,lastK); if(st==='ok')comp++; else if(st==='bad')bad++; else nodata++; }
       const disclosed=comp+bad; const rate=disclosed?comp/disclosed:0;
-      const pK=prevComparable(lastK);
+      // 较上期口径：与主行一致（集团=较半年前；产寿再=序列上一期）
+      let pK=null;
+      if(lastP.kind==='year-end'){ pK=String(lastP.year-1); if(TL.indexOf(pK)<0)pK=null; }
+      else if(seg==='group'){ pK=`${lastP.year-1}Q${lastP.q}`; if(TL.indexOf(pK)<0)pK=null; }
+      else { const i=TL.indexOf(lastK); pK=i>0?TL[i-1]:null; }
       const pwC=pK?weightedAt(pK,'C'):null, pwD=pK?weightedAt(pK,'D'):null;
       COMPS=saveC; DATA=saveD; KEY2PERIOD=saveK; TL=saveTL;
       return {wC,wD,n:companies.length,rate,pwC,pwD};
@@ -985,7 +1014,7 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
     // 同比变动单元格（百分点，红降绿升）；达标率着色（≥90绿/80–90橙/<80红）
     const dChg=(cur,prev)=>(cur==null||prev==null)?'<td>—</td>':(()=>{const d=(cur-prev)*100;
       const c=d<0?'#e74c3c':(d>0?'#27ae60':'#888');
-      return `<td style="color:${c};font-weight:600">${(d>0?'+':'')+d.toFixed(1)}</td>`;})();
+      return `<td style="color:${c};font-weight:600">${(d>0?'+':'')+d.toFixed(1)}%</td>`;})();
     const rateTd=rate=>{const p=rate*100;const c=p>=90?'#27ae60':(p>=80?'#e67e22':'#e74c3c');
       return `<td style="color:${c};font-weight:600">${p.toFixed(1)}%</td>`;};
     let tbody='';
@@ -1020,7 +1049,7 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
       });
     });
     box.innerHTML =
-      '<div class="hint" style="margin-bottom:14px">以下为各细分板块最新报告期的行业偿付能力概览。计算加权口径为本平台基于个体披露自算（综合=Σ实际资本/Σ最低资本，核心=Σ核心资本/Σ最低资本）；<b>监管披露口径（淡蓝底高亮）</b>为金融监管总局直接披露的行业平均数（集团暂无监管披露口径，以「—」表示）。「Δ综合 / Δ核心」为<b>较上年同期</b>变动（百分点，红降绿升）；「达标率」按已披露公司计（≥90%绿 / 80–90%橙 / <80%红）。「其中」子集行仅列计算加权口径，监管披露口径不区分子集，统一以「—」表示。</div>'+
+      '<div class="hint" style="margin-bottom:14px">以下为各细分板块最新报告期的行业偿付能力概览。计算加权口径为本平台基于个体披露自算（综合=Σ实际资本/Σ最低资本，核心=Σ核心资本/Σ最低资本）；<b>监管披露口径（淡蓝底高亮）</b>为金融监管总局直接披露的行业平均数（集团暂无监管披露口径，以「—」表示）。「Δ综合 / Δ核心」为<b>较上期</b>变动（产寿再=较上季度，集团=较半年前；百分点，红降绿升）；「达标率」按已披露公司计（≥90%绿 / 80–90%橙 / <80%红）。「其中」子集行仅列计算加权口径，监管披露口径不区分子集，统一以「—」表示。</div>'+
       '<div class="card"><h3>各板块最新偿付能力概览</h3>'+
         '<div style="overflow-x:auto;border:1px solid var(--line);border-radius:10px"><table style="width:100%;min-width:680px;table-layout:auto;font-size:13px;border-collapse:separate;border-spacing:0">'+
           '<thead><tr><th>板块</th><th>最新期</th><th>综合(加权)</th><th>综合(监管)</th><th>Δ综合</th><th>核心(加权)</th><th>核心(监管)</th><th>Δ核心</th><th>样本数</th><th>达标率</th></tr></thead>'+
@@ -2819,6 +2848,11 @@ let LIFE_CAP_DETAIL = {"companies":["爱心人寿","安联人寿","百年人寿"
     });
     applySegMode();
     bind(); refreshTimeBased();
+    // 页脚动态数据截止期（取各板块最新期次中最晚者）
+    const foot=document.getElementById('siteFooter');
+    if(foot){ let best=null; for(const sk in D.segments){ const ps=D.segments[sk].periods; if(!ps||!ps.length)continue; const p=ps[ps.length-1]; const ord=(p.year||0)*10+(p.q||0); if(!best||ord>best.ord)best={ord,label:p.label}; } if(best)foot.textContent='保险行业偿付能力分析平台 · 纯静态前端 · 数据内联，可离线使用 · 数据截至 '+best.label; }
+    // 移除首屏加载占位
+    const bl=document.getElementById('bootLoading'); if(bl) bl.remove();
   }
   if(document.readyState!=='loading') start(); else document.addEventListener('DOMContentLoaded',start);
   // 资源（CSS/字体/图片）加载完成后统一 resize 一次，兜底首次布局时序导致的 0 宽空白
