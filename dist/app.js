@@ -15,7 +15,9 @@
     equityForm:'tier',
     mcPieMode:'top', mcPieParent:'market',
     rankEvo:null,
+    rankSort:{key:null,dir:null},
     alertPeriod:null, alertFilter:'all',
+    alertSort:{key:null,dir:null}, alertDropMetric:'C',
     cmp:new Set(), focus:null
   };
 
@@ -468,13 +470,36 @@
       series:[{type:'bar',data:vals.map((v,i)=>({value:v,itemStyle:{color:colors[i]}})),barWidth:'70%'}]
     });
     const tb=document.getElementById('rankTable');
-    document.getElementById('rankTableHdr').querySelector('thead').innerHTML='<tr><th>排名</th><th>公司</th><th>综合充足率</th><th>核心充足率</th><th>综合排名</th><th>核心排名</th><th>实际资本(亿)</th><th>最低资本(亿)</th><th>状态</th></tr>';
+    // 表头（可点击排序，B2）
+    const st0=S.rankSort;
+    const arrow=k=> st0.key===k ? (st0.dir==='asc'?' ▲':' ▼') : '';
+    const THS=[['rank','排名',null],['c','公司','asc'],['C','综合充足率','desc'],['D','核心充足率','desc'],['cr','综合排名','asc'],['dr','核心排名','asc'],['I','实际资本(亿)','desc'],['N','最低资本(亿)','desc'],['st','状态','asc']];
+    document.getElementById('rankTableHdr').querySelector('thead').innerHTML=THS.map(t=>`<th ${t[2]?`data-k="${t[0]}" data-d="${t[2]}"`:''}>${t[1]}${t[2]?arrow(t[0]):''}</th>`).join('');
+    document.getElementById('rankTableHdr').querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{
+      const kk=th.dataset.k;
+      if(st0.key===kk) st0.dir=st0.dir==='asc'?'desc':'asc';
+      else { st0.key=kk; st0.dir=th.dataset.d; }
+      renderRank();
+    });
     // 计算综合排名（按 C 降序）、核心排名（按 D 降序）
     const cRank={}, dRank={};
     all.filter(x=>x.C!=null).slice().sort((a,b)=>b.C-a.C).forEach((x,i)=>cRank[x.c]=i+1);
     all.filter(x=>x.D!=null).slice().sort((a,b)=>b.D-a.D).forEach((x,i)=>dRank[x.c]=i+1);
     const q=document.getElementById('rankSearch').value.trim();
-    const frows=rows.filter(x=>!q||x.c.includes(q));
+    // 排序取值器：null 恒排最后
+    const stOrder={bad:0,warn:1,ok:2,nodata:3};
+    const GETV={c:x=>x.c, C:x=>x.C, D:x=>x.D, cr:x=>cRank[x.c]||null, dr:x=>dRank[x.c]||null, I:x=>x.I, N:x=>x.N, st:x=>stOrder[x.st]};
+    let frows=rows.filter(x=>!q||x.c.includes(q));
+    if(st0.key && GETV[st0.key]){
+      const get=GETV[st0.key], dir=st0.dir==='asc'?1:-1;
+      frows=frows.slice().sort((a,b)=>{
+        const va=get(a), vb=get(b);
+        if(va==null&&vb==null) return 0;
+        if(va==null) return 1;
+        if(vb==null) return -1;
+        return (va<vb?-1:va>vb?1:0)*dir;
+      });
+    }
     tb.querySelector('tbody').innerHTML=frows.map(x=>{
       let stTag;
       if(x.st==='nodata') stTag='<span class="tag nodata">未披露</span>';
@@ -487,6 +512,9 @@
     tb.querySelectorAll('tbody tr').forEach(tr=>tr.onclick=()=>{
       tb.querySelectorAll('tbody tr').forEach(t=>t.style.background='');
       tr.style.background='#eef3ff'; S.focus=tr.dataset.c;
+      // B4：联动右侧公司趋势图
+      const sel=document.getElementById('rankEvoSel');
+      if(sel && COMPS.includes(tr.dataset.c)){ sel.value=tr.dataset.c; S.rankEvo=tr.dataset.c; renderRankEvo(); }
     });
     renderRankEvo();
   }
@@ -1223,9 +1251,34 @@
     let f=rows;
     if(S.alertFilter==='bad') f=rows.filter(x=>x.st==='bad');
     else if(S.alertFilter==='warn') f=rows.filter(x=>x.st==='warn');
+    else if(S.alertFilter==='nodata') f=rows.filter(x=>x.st==='nodata');
     const tb=document.getElementById('alertTable');
-    document.getElementById('alertTableHdr').querySelector('thead').innerHTML='<tr><th>公司</th><th>综合充足率</th><th>核心充足率</th><th>实际资本(亿)</th><th>最低资本(亿)</th><th>状态</th></tr>';
-    f.sort((a,b)=>{const av=(a.r&&a.r.C!=null)?a.r.C:99, bv=(b.r&&b.r.C!=null)?b.r.C:99; return av-bv;});
+    // 表头（可点击排序，B2）
+    const stA=S.alertSort;
+    const arrow=k=> stA.key===k ? (stA.dir==='asc'?' ▲':' ▼') : '';
+    const ATHS=[['c','公司','asc'],['C','综合充足率','asc'],['D','核心充足率','asc'],['I','实际资本(亿)','desc'],['N','最低资本(亿)','desc'],['st','状态','asc']];
+    document.getElementById('alertTableHdr').querySelector('thead').innerHTML=ATHS.map(t=>`<th data-k="${t[0]}" data-d="${t[2]}">${t[1]}${arrow(t[0])}</th>`).join('');
+    document.getElementById('alertTableHdr').querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{
+      const kk=th.dataset.k;
+      if(stA.key===kk) stA.dir=stA.dir==='asc'?'desc':'asc';
+      else { stA.key=kk; stA.dir=th.dataset.d; }
+      renderAlert();
+    });
+    const stOrder={bad:0,warn:1,ok:2,nodata:3};
+    const GETV={c:x=>x.c, C:x=>(x.r&&x.r.C!=null)?x.r.C:null, D:x=>(x.r&&x.r.D!=null)?x.r.D:null, I:x=>(x.r&&x.r.I!=null)?x.r.I:null, N:x=>(x.r&&x.r.N!=null)?x.r.N:null, st:x=>stOrder[x.st]};
+    if(stA.key && GETV[stA.key]){
+      const get=GETV[stA.key], dir=stA.dir==='asc'?1:-1;
+      f=f.slice().sort((a,b)=>{
+        const va=get(a), vb=get(b);
+        if(va==null&&vb==null) return 0;
+        if(va==null) return 1;
+        if(vb==null) return -1;
+        return (va<vb?-1:va>vb?1:0)*dir;
+      });
+    } else {
+      // 默认：综合充足率升序（最差在前），未披露排最后
+      f.sort((a,b)=>{const av=(a.r&&a.r.C!=null)?a.r.C:99, bv=(b.r&&b.r.C!=null)?b.r.C:99; return av-bv;});
+    }
     tb.querySelector('tbody').innerHTML=f.map(x=>{
       let stTag;
       if(x.st==='nodata') stTag='<span class="tag nodata">未披露</span>';
@@ -1241,8 +1294,12 @@
       return `<tr><td>${x.c}</td><td style="color:${cCol};font-weight:600">${cc}</td><td style="color:${dCol};font-weight:600">${dd}</td><td>${ii}</td><td>${nn}</td><td>${stTag}</td></tr>`;
     }).join('');
     const prevK=prevComparable(k);
+    // D8：恶化榜口径（综合/核心）切换
+    const fld=S.alertDropMetric||'C';
+    const dtEl=document.getElementById('alertDropTitle');
+    if(dtEl) dtEl.textContent=`充足率同比恶化榜（${fld==='C'?'综合':'核心'}充足率 较上年同期 变动，单位：百分点）`;
     if(prevK){
-      const drop=COMPS.map(c=>{const r=DATA[c][k],pr=DATA[c][prevK]; if(!r||!pr||r.C==null||pr.C==null) return null; return {c,d:(r.C-pr.C)*100};})
+      const drop=COMPS.map(c=>{const r=DATA[c][k],pr=DATA[c][prevK]; if(!r||!pr||r[fld]==null||pr[fld]==null) return null; return {c,d:(r[fld]-pr[fld])*100};})
                       .filter(x=>x).sort((a,b)=>a.d-b.d).slice(0,15).reverse();
       // 按最大|变动值|留出余量，确保横向条形最右端的数值标签不溢出被截断
       const maxAbs=drop.reduce((m,x)=>Math.max(m,Math.abs(x.d)),0)||1;
@@ -1448,6 +1505,11 @@
     document.getElementById('alertFilter').querySelectorAll('button').forEach(b=>b.onclick=()=>{
       document.getElementById('alertFilter').querySelectorAll('button').forEach(x=>x.classList.remove('on'));
       b.classList.add('on'); S.alertFilter=b.dataset.v; renderAlert();
+    });
+    const alertDropMetricEl=document.getElementById('alertDropMetric');
+    if(alertDropMetricEl) alertDropMetricEl.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+      alertDropMetricEl.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on'); S.alertDropMetric=b.dataset.v; renderAlert();
     });
     // 数据说明全局浮层
     const ao=document.getElementById('aboutOverlay');

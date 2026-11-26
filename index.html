@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>保险行业偿付能力分析平台 · 2022–2026</title>
 <script src="echarts.min.js?v=20260803"></script>
-<script src="data.js?v=20260803"></script>
-<script src="reg_industry.js?v=20260803"></script>
+<script src="data.js?v=20261126a"></script>
+<script src="reg_industry.js?v=20261126a"></script>
 <style>
   :root{
     --bg:#f5f7fa; --card:#ffffff; --ink:#1f2d3d; --sub:#6b7a8d; --line:#e6ebf1;
@@ -267,7 +267,7 @@
       <div class="card" style="padding-bottom:12px">
         <div class="row-ctl" style="margin-bottom:0">
           <span class="ctl" style="color:var(--sub)">公司：</span><select id="rankEvoSel"></select>
-          <span class="ctl" style="color:var(--sub);margin-left:6px;font-size:12px;color:#9aa7b5">（右侧趋势图随上方指标切换 综合 / 核心）</span>
+          <span class="ctl" style="color:var(--sub);margin-left:6px;font-size:12px;color:#9aa7b5">（点击排名表行可快速切换公司；趋势图随上方指标切换 综合 / 核心）</span>
         </div>
       </div>
       <!-- 第2行：图表（同一行 → 底部对齐） -->
@@ -403,7 +403,7 @@
       <div class="row-ctl">
         <span class="ctl" style="color:var(--sub)">观察期末：</span><select id="alertPeriod"></select>
         <span class="ctl" style="color:var(--sub);margin-left:10px">筛选：</span>
-        <div class="seg" id="alertFilter"><button data-v="all" class="on">全部</button><button data-v="bad">不达标</button><button data-v="warn">关注</button></div>
+        <div class="seg" id="alertFilter"><button data-v="all" class="on">全部</button><button data-v="bad">不达标</button><button data-v="warn">关注</button><button data-v="nodata">未披露</button></div>
       </div>
       <div class="split-table">
         <div class="split-hdr"><table id="alertTableHdr"><thead></thead></table></div>
@@ -411,7 +411,11 @@
       </div>
     </div>
     <div class="card">
-      <h3>充足率同比恶化榜（综合充足率 较上年同期 变动，单位：百分点）</h3>
+      <h3 id="alertDropTitle">充足率同比恶化榜（综合充足率 较上年同期 变动，单位：百分点）</h3>
+      <div class="row-ctl" style="margin:6px 0 2px">
+        <span class="ctl" style="color:var(--sub)">口径：</span>
+        <div class="seg" id="alertDropMetric"><button data-v="C" class="on">综合</button><button data-v="D">核心</button></div>
+      </div>
       <div class="hint">基于当前期末与上一可比时点（上年末或去年同期）对比</div>
       <div id="alertDrop" class="chart" style="height:360px"></div>
     </div>
@@ -517,8 +521,8 @@
       <ul>
         <li><b>更新机制：</b>季度数据更新由 <code>tools/update_quarter.py</code> 一键自动完成。
           <br>① <b>自动模式（推荐）：</b>把新季度源 Excel 放入 <code>data/</code> 目录，运行
-          <br><code>python tools/update_quarter.py --dry --quarter 2026Q2</code>（先预览将处理哪些文件，确认无误）
-          <br><code>python tools/update_quarter.py --deploy --quarter 2026Q2</code>（更新 + 重建交付物 + git 推送）
+          <br><code>python tools/update_quarter.py --dry --quarter 期次</code>（期次如 <code>2026Q3</code>；先预览将处理哪些文件，确认无误）
+          <br><code>python tools/update_quarter.py --deploy --quarter 期次</code>（更新 + 重建交付物 + git 推送）
           <br>脚本会自动识别「板块类型 + 期次 + 修订号」：<b>集团=半年度、产寿/再保=季度</b>；文件名含"年份区间"（如 22-25 整段时间线）的历史文件会自动跳过，不会误当当期数据源。单个源文件会<b>覆盖本期并补充新增</b>，其它期次/公司保持不变（upsert 语义），并同步更新主表 C~V 与<b>最低资本分解明细</b>（含集团母公司/成员公司/特有风险）。
           <br>② <b>浏览器自助（普通用户）：</b>页面顶部「数据」按钮——导出当前数据 JSON、改好数值导入即刷新、再「导出可转发网页」生成新单文件转发（无需服务器）。
           <br>③ 也可把 xlsx/JSON 发我代更新，刷新页面即生效。</li>
@@ -560,6 +564,6 @@
 
       <script src="compare_config.js"></script>
       <script src="life_capital_detail.js?v=20261103"></script>
-      <script src="app.js?v=20261104c"></script>
+      <script src="app.js?v=20261126a"></script>
 </body>
 </html>
